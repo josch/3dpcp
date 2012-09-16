@@ -21,7 +21,7 @@
 void signal_segv(int v)
 {
   static bool segfault = false;
-  if(!segfault) {
+  if (!segfault) {
     segfault = true;
     cout << endl << "Segmentation fault" << endl;
     deinitShow();
@@ -32,7 +32,7 @@ void signal_segv(int v)
 void signal_interrupt(int v)
 {
   static bool segfault = false;
-  if(!segfault) {
+  if (!segfault) {
     segfault = true;
     cout << endl << "Exiting by interrupt" << endl;
     deinitShow();
@@ -48,7 +48,7 @@ void signal_interrupt(int v)
 int main(int argc, char **argv)
 {
   signal(SIGSEGV, signal_segv);
-  signal(SIGINT,  signal_interrupt);
+  signal(SIGINT, signal_interrupt);
   signal(SIGTERM, signal_interrupt);
 
   initShow(argc, argv);
@@ -59,17 +59,20 @@ int main(int argc, char **argv)
 }
 
 
-void updateCamControls() {
-  cam_spinner->set_int_limits( 1, cams.size());
+void updateCamControls()
+{
+  cam_spinner->set_int_limits(1, cams.size());
   cam_spinner->set_int_val(cam_choice);
 }
 
-void resetRotationButton() {
+void resetRotationButton()
+{
   rotButton->reset();
 }
 
-void updateTopViewControls() {
-  if(showTopView) {
+void updateTopViewControls()
+{
+  if (showTopView) {
     pzoom_spinner->enable();
     cangle_spinner->disable();
   } else {
@@ -78,8 +81,9 @@ void updateTopViewControls() {
   }
 }
 
-  
-void updateControls() {
+
+void updateControls()
+{
   glui1->sync_live();
   glui1->show();
   glui2->sync_live();
@@ -87,35 +91,41 @@ void updateControls() {
 }
 
 static bool interrupted = false;
-void interruptDrawing() {
+void interruptDrawing()
+{
   interrupted = true;
 }
-void checkForInterrupt() {
+
+void checkForInterrupt()
+{
   interrupted = false;
 }
-bool isInterrupted() {
+
+bool isInterrupted()
+{
 #ifdef WITH_FREEGLUT
 #ifndef __APPLE__
-  glutMainLoopEvent(); 
+  glutMainLoopEvent();
 #endif
 #endif
   glutSetWindow(window_id);
   return interrupted;
 }
 
-void updatePointModeControls() {
-  switch(pointmode) {
-    case -1:
-      always_box->set_int_val(0);
-      never_box->set_int_val(1);
-      break;
-    case 0:
-      always_box->set_int_val(0);
-      never_box->set_int_val(0);
-      break;
-    case 1:
-      always_box->set_int_val(1);
-      never_box->set_int_val(0);
-      break;
+void updatePointModeControls()
+{
+  switch (pointmode) {
+  case -1:
+    always_box->set_int_val(0);
+    never_box->set_int_val(1);
+    break;
+  case 0:
+    always_box->set_int_val(0);
+    never_box->set_int_val(0);
+    break;
+  case 1:
+    always_box->set_int_val(1);
+    never_box->set_int_val(0);
+    break;
   }
 }
