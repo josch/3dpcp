@@ -795,6 +795,30 @@ void resetView(int dummy)
   resetRotationButton();
 }
 
+//---------------------------------------------------------------------------
+/**
+ * Function to reset the viewer window to the center of mass of all scans.
+ */
+
+void resetViewToCoM(int dummy)
+{
+  cangle = 60.0;
+  pzoom = defaultZoom; 
+  X = -CoM[0];
+  Y = -CoM[1];
+  Z = -CoM[2];
+  quat[0] = Rquat[0];
+  quat[1] = Rquat[1];
+  quat[2] = Rquat[2];
+  quat[3] = Rquat[3];
+  haveToUpdate = 2;
+  mouseRotX = 0;
+  mouseRotY = 0;
+  mouseRotZ = 0;
+
+  resetRotationButton();
+}
+
 /**
  * Function to set the viewer window back to a previously saved state.
  */

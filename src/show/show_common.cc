@@ -141,6 +141,11 @@ GLdouble X = 0.0, Y = 0.0, Z = 0.0;
 GLdouble RVX = 0.0, RVY = 0.0, RVZ = 0.0;
 
 /**
+ * Center of Mass coordinates
+ */
+GLdouble CoM[3] = {0., 0., 0.};
+
+/**
  * parallel zoom (similar to apex angle) for parallel projection
  */
 GLfloat pzoom = 2000.0;
@@ -583,8 +588,41 @@ int parseArgs(int argc, char **argv, string & dir, int &start, int &end,
   return 0;
 }
 
-void setResetView(int origin)
+void setResetView(int origin) 
 {
+  // compute center of mass of all scans 
+  for (size_t i = 0; i < octpts.size(); ++i)
+  {
+    vector <sfloat*> points;
+#ifdef USE_COMPACT_TREE
+	((compactTree*)octpts[i])->AllPoints( points );
+#else
+    BOctTree<sfloat>* cur_tree = ((Show_BOctTree<sfloat>*)octpts[i])->getTree();
+    cur_tree->AllPoints( points );
+#endif
+
+#ifdef DEBUG
+    cout << "Scan " << i << " size: " << points.size() << endl;
+#endif
+    double centroid[3] = {0., 0., 0.};
+    for (size_t j = 0; j < points.size(); ++j) 
+    {
+      for (unsigned int k = 0; k < 3; ++k) 
+        centroid[k] += points[j][k];
+    }
+    for (unsigned int k = 0; k < 3; ++k) 
+    {
+      centroid[k] /= points.size() * 1.;
+      CoM[k] += centroid[k];
+    }
+  }
+  for (unsigned int k = 0; k < 3; ++k) 
+    CoM[k] /= octpts.size() * 1.;
+
+#ifdef DEBUG
+  cout << "Center of Mass at: " << CoM[0] << ", " << CoM[1] << ", " << CoM[2] << endl;
+#endif
+
   if (origin == 1) {
     double *transmat = MetaMatrix[0].back();
     cout << transmat << endl;
@@ -601,6 +639,8 @@ void setResetView(int origin)
     quat[2] = Rquat[2];
     quat[3] = Rquat[3];
   } else if (origin == 2) {
+	// reset to center of the octree - disabled
+/*
     double center[3];
 #ifdef USE_COMPACT_TREE
     ((compactTree *) octpts[0])->getCenter(center);
@@ -610,6 +650,14 @@ void setResetView(int origin)
     RVX = -center[0];
     RVY = -center[1];
     RVZ = -center[2];
+    X = RVX;
+    Y = RVY;
+    Z = RVZ;
+*/
+	// reset to the global coordinates of the center of mass of all scans
+	RVX = -CoM[0];
+    RVY = -CoM[1];
+    RVZ = -CoM[2];
     X = RVX;
     Y = RVY;
     Z = RVZ;

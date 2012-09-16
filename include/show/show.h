@@ -60,6 +60,7 @@ void usage(char * prog);
 void myNewMenu();
 void topView();
 void resetView(int dummy);
+void resetViewToCoM(int dummy);
 void setView(double pos[3], double new_quat[4], 
              double newMouseRotX, double newMouseRotY, double newMouseRotZ,
              double newCangle,

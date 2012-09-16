@@ -171,6 +171,9 @@ void newMenu()
   glui2->add_button_to_panel(mode_panel, "Reset position", 0,
                              resetView)->set_alignment(GLUI_ALIGN_CENTER);
   glui2->add_column(true);
+  glui2->add_button_to_panel(mode_panel, "Center position", 0,
+                             resetViewToCoM)->set_alignment(GLUI_ALIGN_CENTER);
+  glui2->add_column(true);
 
   /****** Add Camera View *****/
 
