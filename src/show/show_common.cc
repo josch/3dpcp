@@ -67,7 +67,7 @@ using std::exception;
  */
 vector<vector<vertexArray*>> vvertexArrayList;
 
-vector<::SDisplay*> displays;
+vector< ::SDisplay*> displays;
 /**
  * the octrees that store the points for each scan
  */
