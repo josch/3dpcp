@@ -1,0 +1,27 @@
+inline const double* Scan::get_rPos() const {
+  return rPos;
+}
+
+inline const double* Scan::get_rPosTheta() const {
+  return rPosTheta;
+}
+
+inline const double* Scan::get_rPosQuat() const {
+  return rQuat;
+}
+
+inline const double* Scan::get_transMat() const {
+  return transMat;
+}
+
+inline const double* Scan::get_transMatOrg() const {
+  return transMatOrg;
+}
+
+inline const double* Scan::getDAlign() const {
+  return dalignxf;
+}
+
+inline ANNkd_tree* Scan::getANNTree() const {
+  return ann_kd_tree;
+}
