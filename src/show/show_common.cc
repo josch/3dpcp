@@ -143,7 +143,7 @@ GLdouble RVX = 0.0, RVY = 0.0, RVZ = 0.0;
 /**
  * Center of Mass coordinates
  */
-GLdouble CoM[3] = {0., 0., 0.};
+GLdouble CoM[3] = { 0.0, 0.0, 0.0 };
 
 /**
  * parallel zoom (similar to apex angle) for parallel projection
@@ -588,14 +588,13 @@ int parseArgs(int argc, char **argv, string & dir, int &start, int &end,
   return 0;
 }
 
-void setResetView(int origin) 
+void setResetView(int origin)
 {
-  // compute center of mass of all scans 
-  for (size_t i = 0; i < octpts.size(); ++i)
-  {
+  // compute center of mass of all scans
+  for (size_t i = 0; i < octpts.size(); ++i) {
     vector <sfloat*> points;
 #ifdef USE_COMPACT_TREE
-	((compactTree*)octpts[i])->AllPoints( points );
+    ((compactTree*)octpts[i])->AllPoints( points );
 #else
     BOctTree<sfloat>* cur_tree = ((Show_BOctTree<sfloat>*)octpts[i])->getTree();
     cur_tree->AllPoints( points );
@@ -605,18 +604,16 @@ void setResetView(int origin)
     cout << "Scan " << i << " size: " << points.size() << endl;
 #endif
     double centroid[3] = {0., 0., 0.};
-    for (size_t j = 0; j < points.size(); ++j) 
-    {
-      for (unsigned int k = 0; k < 3; ++k) 
+    for (size_t j = 0; j < points.size(); ++j) {
+      for (unsigned int k = 0; k < 3; ++k)
         centroid[k] += points[j][k];
     }
-    for (unsigned int k = 0; k < 3; ++k) 
-    {
+    for (unsigned int k = 0; k < 3; ++k) {
       centroid[k] /= points.size() * 1.;
       CoM[k] += centroid[k];
     }
   }
-  for (unsigned int k = 0; k < 3; ++k) 
+  for (unsigned int k = 0; k < 3; ++k)
     CoM[k] /= octpts.size() * 1.;
 
 #ifdef DEBUG
@@ -639,7 +636,7 @@ void setResetView(int origin)
     quat[2] = Rquat[2];
     quat[3] = Rquat[3];
   } else if (origin == 2) {
-	// reset to center of the octree - disabled
+    // reset to center of the octree - disabled
 /*
     double center[3];
 #ifdef USE_COMPACT_TREE
@@ -654,8 +651,8 @@ void setResetView(int origin)
     Y = RVY;
     Z = RVZ;
 */
-	// reset to the global coordinates of the center of mass of all scans
-	RVX = -CoM[0];
+    // reset to the global coordinates of the center of mass of all scans
+    RVX = -CoM[0];
     RVY = -CoM[1];
     RVZ = -CoM[2];
     X = RVX;

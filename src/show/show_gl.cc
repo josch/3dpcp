@@ -803,7 +803,7 @@ void resetView(int dummy)
 void resetViewToCoM(int dummy)
 {
   cangle = 60.0;
-  pzoom = defaultZoom; 
+  pzoom = defaultZoom;
   X = -CoM[0];
   Y = -CoM[1];
   Z = -CoM[2];
