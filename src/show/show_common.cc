@@ -883,7 +883,35 @@ void cycleLOD()
     octpts[i]->cycleLOD();
 }
 
-
+/**
+ * Main method for reading scans (.3d files) and rendering points in the viewer, via OpenGL. 
+ * 
+ * Workflow summary:
+ *  - parse command line arguments, set appropriate flags, thresholds, etc.
+ *  - load scan points into memory, using either Scan, BOcttree (Show_BOcttree) or compactTree objects. 
+ *  - send points to the OpenGL rendering pipeline
+ *
+ * Access to point data:
+ *  - from Scan objects:
+ *    - loop through the vector of scans (Scan::allScans)
+ *    - for each Scan, get the datatype, e.g. for UOSR:
+ *      DataXYZ xyz = scan->get("xyz");
+ *      DataReflectance xyz_reflectance = scan->get("reflectance");
+ *    - get the point size: unsigned int point_size = xyz.size();
+ *    - access each point i, i from 0 to point_size by:
+ *      xyz[i][0], xyz[i][1], xyz[i][2] and reflectance by xyz_reflectance[i]
+ *
+ *  - from octtrees:
+ *    - loop through all scans stored in the global octpts vector
+ *    - get all points in a scan in a vector<T*> variable:
+ *      vector <T*> points;
+ *      #ifdef USE_COMPACT_TREE
+ *        ((compactTree*)octpts[i])->AllPoints( points );
+ *      #else
+ *         BOctTree<sfloat>* tree = ((Show_BOctTree<sfloat>*)octpts[i])->getTree();
+ *         tree->AllPoints( points );
+ *      #endif
+ */
 void initShow(int argc, char **argv)
 {
 
