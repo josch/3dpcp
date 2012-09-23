@@ -120,6 +120,16 @@ void ManagedScan::setHeightFilter(double top, double bottom)
   m_shared_scan->setHeightParameters(top, bottom);
 }
 
+void ManagedScan::setSphere()
+{
+  m_shared_scan->setSphereParameters();
+}
+
+void ManagedScan::unsetSphere()
+{
+  m_shared_scan->unsetSphereParameters();
+}
+
 void ManagedScan::setReductionParameter(double voxelSize, int nrpts, PointType pointtype)
 {
   Scan::setReductionParameter(voxelSize, nrpts, pointtype);

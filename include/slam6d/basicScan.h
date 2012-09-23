@@ -34,6 +34,9 @@ public:
   virtual unsigned int getFrameCount();
   virtual void getFrame(unsigned int i, const double*& pose_matrix, AlgoType& type);
 
+  virtual void setSphere();
+  virtual void unsetSphere();
+
 protected:
   virtual void createSearchTreePrivate();
   virtual void calcReducedOnDemandPrivate();
@@ -47,6 +50,7 @@ private:
 
   double m_filter_max, m_filter_min, m_filter_top, m_filter_bottom;
   bool m_filter_range_set, m_filter_height_set;
+  bool sphere;
 
   std::map<std::string, std::pair<unsigned char*, unsigned int>> m_data;
 

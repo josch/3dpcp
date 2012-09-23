@@ -400,6 +400,8 @@ void usage(char* prog)
 	  << "         All reflectivity/amplitude/deviation/type settings are read from file." << endl
 	  << "         --reflectance/--amplitude and similar parameters are therefore ignored." << endl
 	  << "         only works when using octree display" << endl
+    << bold << "  -P, --sphere" << endl << normal
+      << "         map all measurements to a sphere of radius 100cm" << endl
     << endl << endl;
 
   exit(1);
@@ -421,7 +423,8 @@ void usage(char* prog)
  */
 int parseArgs(int argc,char **argv, string &dir, int& start, int& end, int& maxDist, int& minDist, 
               double &red, bool &readInitial, int &octree, PointType &ptype, float &fps, string &loadObj,
-              bool &loadOct, bool &saveOct, int &origin, double &scale, IOType &type, bool& scanserver)
+              bool &loadOct, bool &saveOct, int &origin, double &scale, IOType &type, bool& scanserver,
+              bool &sphere)
 {
   unsigned int types = PointType::USE_NONE;
   start   = 0;
@@ -459,6 +462,7 @@ int parseArgs(int argc,char **argv, string &dir, int& start, int& end, int& maxD
     { "loadOct",         no_argument,         0,  '1' },
     { "advanced",        no_argument,         0,  '2' },
     { "scanserver",      no_argument,         0,  'S' },
+    { "sphere",          no_argument,         0,  'P' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
 
@@ -548,6 +552,9 @@ int parseArgs(int argc,char **argv, string &dir, int& start, int& end, int& maxD
         break;
       case '2':
         advanced_controls = true; 
+        break;
+      case 'P':
+        sphere = true;
         break;
       default:
         abort ();
@@ -846,6 +853,7 @@ void initShow(int argc, char **argv){
   int origin = 0;
   double scale = 0.01; // in m
   bool scanserver = false;
+  bool sphere = false;
 
   pose_file_name = new char[1024];
   path_file_name = new char[1024];
@@ -856,7 +864,8 @@ void initShow(int argc, char **argv){
   strncpy(selection_file_name, "selected.3d", 1024);
 
   parseArgs(argc, argv, dir, start, end, maxDist, minDist, red, readInitial,
-  octree, pointtype, idealfps, loadObj, loadOct, saveOct, origin, scale, type, scanserver);
+  octree, pointtype, idealfps, loadObj, loadOct, saveOct, origin, scale, type,
+  scanserver, sphere);
 
   // modify all scale dependant variables
   scale = 1.0 / scale;
@@ -905,6 +914,8 @@ void initShow(int argc, char **argv){
   for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
     Scan* scan = *it;
     scan->setRangeFilter(maxDist, minDist);
+    if(sphere)
+      scan->setSphere();
     if(red > 0) {
       // scanserver differentiates between reduced for slam and reduced for show, can handle both at the same time
       if(scanserver) {
@@ -932,7 +943,7 @@ void initShow(int argc, char **argv){
   
   for(unsigned int i = 0; i < Scan::allScans.size(); ++i) {
     Scan* scan = Scan::allScans[i];
-  
+ 
   // create data structures
 #ifdef USE_COMPACT_TREE // FIXME: change compact tree, then this case can be removed
     compactTree* tree;

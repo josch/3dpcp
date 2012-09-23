@@ -30,6 +30,9 @@ public:
   virtual void saveFrames() {}
   virtual unsigned int getFrameCount() { return 0; }
   virtual void getFrame(unsigned int i, const double*& pose_matrix, AlgoType& type) {}
+
+  virtual void setSphere() {};
+  virtual void unsetSphere() {};
   
 protected:
   virtual void createSearchTreePrivate();

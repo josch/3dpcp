@@ -38,6 +38,9 @@ public:
   virtual unsigned int getFrameCount();
   virtual void getFrame(unsigned int i, const double*& pose_matrix, AlgoType& type);
 
+  virtual void setSphere();
+  virtual void unsetSphere();
+
 protected:
   virtual void createSearchTreePrivate();
   virtual void calcReducedOnDemandPrivate();

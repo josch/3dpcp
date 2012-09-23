@@ -94,6 +94,9 @@ public:
   
   //! Get pose from pose file
   double* getPose();
+
+  void setSphereParameters();
+  void unsetSphereParameters();
   
   //! Get specific cached data
   DataXYZ getXYZ();
@@ -160,6 +163,7 @@ private:
   SharedString m_show_parameters;
   SharedString m_octtree_parameters;
   bool m_load_frames_file;
+  bool sphere;
 
 protected:
   ip::offset_ptr<double> m_pose;

@@ -105,6 +105,7 @@ void BasicScan::init()
   m_filter_bottom = 0.0;
   m_filter_range_set = false;
   m_filter_height_set = false;
+  sphere = false;
 }
 
 
@@ -120,6 +121,16 @@ void BasicScan::setHeightFilter(double top, double bottom)
   m_filter_top = top;
   m_filter_bottom = bottom;
   m_filter_height_set = true;
+}
+
+void BasicScan::setSphere()
+{
+  sphere = true;
+}
+
+void BasicScan::unsetSphere()
+{
+  sphere = false;
 }
 
 void BasicScan::get(unsigned int types)
@@ -148,6 +159,20 @@ void BasicScan::get(unsigned int types)
                 &amplitude,
                 &type,
                 &deviation);
+
+  if(types & DATA_XYZ && !xyz.empty() && xyz.size()%3 == 0 && sphere) {
+    for(unsigned int i = 0; i < xyz.size()/3; i++) {
+        double x = xyz[i*3+0];
+        double y = xyz[i*3+1];
+        double z = xyz[i*3+2];
+        double r = sqrt(x*x + y*y + z*z);
+        double theta = acos(z/r);
+        double phi = atan2(y, x);
+        xyz[i*3+0] = 100.0*sin(theta)*cos(phi);
+        xyz[i*3+1] = 100.0*sin(theta)*sin(phi);
+        xyz[i*3+2] = 100.0*cos(theta);
+    }
+  }
 
   // for each requested and filled data vector, allocate and write contents to their new data fields
   if(types & DATA_XYZ && !xyz.empty()) {

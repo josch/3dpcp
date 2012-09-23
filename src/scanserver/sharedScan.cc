@@ -69,6 +69,22 @@ void SharedScan::setRangeParameters(double max_dist, double min_dist)
   m_range_param_set = true;
 }
 
+void SharedScan::setSphereParameters()
+{
+      invalidateFull();
+      invalidateReduced();
+      invalidateShow();
+  sphere = true;
+}
+
+void SharedScan::unsetSphereParameters()
+{
+      invalidateFull();
+      invalidateReduced();
+      invalidateShow();
+  sphere = false;
+}
+
 void SharedScan::setHeightParameters(double top, double bottom)
 {
   // if a non-first set differs from the previous ones, invalidate all COs
