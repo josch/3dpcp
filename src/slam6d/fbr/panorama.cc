@@ -494,6 +494,138 @@ namespace fbr{
 	map(x, y, it, range);
       }
     }
+
+    // nomenclature is chosen according to:
+    // http://mathworld.wolfram.com/AlbersEqual-AreaConicProjection.html
+    if(pMethod == CONIC){
+      double phi, lambda, theta, rho;
+      int widthMax = iWidth - 1;
+      int heightMax = iHeight - 1;
+
+      // the following code is not tested with phi_0 and lambda_0 of different
+      // values than zero
+      double phi_0 = 0.0;
+      double lambda_0 = 0.0;
+
+      // the panorama class does not allow for passing of arguments, so the
+      // following values of phi_1 and phi_2 for the standard parallels are
+      // fixed during runtime.
+      double phi_1 = 0.0;
+      double phi_2 = M_PI / 3.0; // 60 degrees
+      // Nevertheless, the following code allows for phi_1 and phi_2 to be
+      // different from the default values above
+
+      // the angle over which the arc that the projection creates extends is
+      // calculated with by
+      //
+      //  tau = (sin(phi_1)+sin(phi_2))*pi
+      //
+      // eg for phi_1 = 0.0 and phi_2 = pi/2 = 90 deg, the arc would be a half circle
+      //    for phi_1 = 0.0 and phi_2 = pi/6 = 30 deg, the arc would be a quarter circle
+      //
+      // the variable n stores the value of tau/(2*pi)
+
+      double n = 0.5*(sin(phi_1) + sin(phi_2));
+      double C = cos(phi_1)*cos(phi_1) + 2 * n * sin(phi_1);
+      double rho_0 = sqrt(C - 2 * n * sin(phi_0))/n;
+
+      double scale, xshift, yshift, pwidth, pheight, xscale, yscale;
+      // the value n decides whether the arc is less than, equal or more than
+      // 180 degrees
+      if (n >= 0.5) {
+        // arc is bigger than or equal to 180 degrees
+
+        // the x shift is equal to the radius which can be found by the
+        // y coordinate of the projection of polar coordinate (-pi/2, 0.0)
+        xshift = 2.0-rho_0+(sqrt(C+2*n)/n)*cos(-n*lambda_0);
+        // the width is twice the radius
+        pwidth = 2.0*xshift;
+
+        // the y shift is equal to the y coordinate of the projection of polar
+        // coordinate (-pi/2, pi)
+        yshift = rho_0-(sqrt(C+2*n)/n)*cos(n*(M_PI-lambda_0));
+
+        // the height is equal to the difference of the y coordinate of the
+        // projection of polar coordinate (-pi/2, pi) and the y coordinate of
+        // the projection of polar coordinate (-pi/2, 0.0)
+        pheight = (sqrt(C+2*n)/n)*(cos(-n*lambda_0)-cos(n*(M_PI-lambda_0)));
+      } else {
+        // arc is smaller than 180 degrees
+
+        // the x shift is equal to the x coordinate of the projection of polar
+        // coordinate (-pi/2, pi)
+        xshift = (sqrt(C+2*n)/n)*sin(n*(M_PI-lambda_0));
+        // the width is twice the x shift
+        pwidth = 2.0*xshift;
+
+        // the y shift is equal to the y coordinate of the projection of polar
+        // coordinate (pi/2, pi)
+        yshift = rho_0-(sqrt(C-2*n)/n)*cos(n*(M_PI-lambda_0));
+
+        // the height is equal to the difference of the y coordinate of the
+        // projection of polar coordinate (pi/2, pi) and the y coordinate of
+        // the projection of polar coordinate (-pi/2, 0.0)
+        pheight = (sqrt(C+2*n)/n)*cos(-n*lambda_0)-(sqrt(C-2*n)/n)*cos(n*(M_PI-lambda_0));
+      }
+
+      xscale = iWidth / pwidth;
+      yscale = iHeight / pheight;
+      // pick the smaller scaling
+      if (xscale < yscale)
+          scale = xscale;
+      else
+          scale = yscale;
+
+      cv::MatIterator_<cv::Vec4f> it, end;
+
+      for( it = scan.begin<cv::Vec4f>(), end = scan.end<cv::Vec4f>(); it != end; ++it){
+        double kart[3], polar[3], range;
+        kart[0] = (*it)[2]/100;
+        kart[1] = (*it)[0]/-100;
+        kart[2] = (*it)[1]/100;
+        toPolar(kart, polar);
+        //theta == polar[0] == scan [4]
+        //phi == polar[1] == scan [5]
+        //range == polar[2] == scan [3]
+
+        // considered turning phi upside down (negating it), so that the
+        // "bottom" of the scan is on the longer side (bottom) of the cone
+        // but the results do not look well as the scan is squeezed into a
+        // small stripe at the bottom (at least with the default parallels)
+        // and thus not well visible
+        //
+        // convert polar[0] from [0..pi] to [-pi/2..pi/2]
+        // convert polar[1] from [0..2pi] to [-pi..pi]
+        phi = polar[0] - M_PI/2.0;
+        lambda = polar[1] - M_PI;
+        range = polar[2];
+        theta = n * (lambda - lambda_0);
+        rho = sqrt(C - 2 * n * sin(phi))/n;
+        // before shifting and scaling the center of the arc is at x,y = (0.0,
+        // 1.0) and looks like this for n < 0.5:
+        //
+        //                       A Y
+        //                       |
+        //                       |
+        //                       + (0,1)
+        //       (pi/2,-pi) *    |    * (pi/2,pi)
+        //                       * (pi/2,0)
+        //(-pi/2,-pi) *          |          * (-pi/2,pi)
+        //       ----------------+----------------->
+        //                       |                  X
+        //                       * (-pi/2,0)
+        //                       |
+        //
+        int x = (int) ((rho * sin(theta) + xshift)*scale);
+        // turn upside down because image y axis points downward not upward
+        int y = (int) ((-1)*(rho_0 - rho * cos(theta) - yshift)*scale);
+        if (x < 0) x = 0;
+        if (x > widthMax) x = widthMax;
+        if (y < 0) y = 0;
+        if (y > heightMax) y = heightMax;
+        map(x, y, it, range);
+      }
+    }
   }
 
   unsigned int panorama::getImageWidth(){
