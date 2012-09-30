@@ -105,6 +105,9 @@ void usage(char* prog)
 	  << "         start at scan NR (i.e., neglects the first NR scans)" << endl
 	  << "         [ATTENTION: counting naturally starts with 0]" << endl
 	  << endl
+         << endl
+         << bold << "  -S, --scanserver" << normal << endl
+         << "         Use the scanserver as an input method and handling of scan data" << endl
     	  << endl << endl;
   
   cout << bold << "EXAMPLES " << normal << endl
@@ -130,7 +133,7 @@ void usage(char* prog)
  */
 int parseArgs(int argc, char **argv, string &dir, double &red, 
 		    int &start, int &end, int &maxDist, int &minDist, int &octree, 
-		    IOType &type)
+		    IOType &type, bool &scanserver)
 {
   bool reduced = false;
   int  c;
@@ -148,6 +151,7 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
     { "end",             required_argument,   0,  'e' },
     { "reduce",          required_argument,   0,  'r' },
     { "octree",          optional_argument,   0,  'O' },
+    { "scanserver",      optional_argument,   0,  'S' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
 
@@ -189,6 +193,9 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
 	 case 'M':
 	   minDist = atoi(optarg);
 	   break;
+    case 'S':
+       scanserver = true;
+       break;
    case '?':
 	   usage(argv[0]);
 	   return 1;
@@ -241,25 +248,18 @@ int main(int argc, char **argv)
   int    maxDist    = -1;
   int    minDist    = -1;
   int    octree     = 0;
+  bool   scanserver = false;
   IOType type    = RIEGL_TXT;
   
-  parseArgs(argc, argv, dir, red, start, end, maxDist, minDist, octree, type);
+  parseArgs(argc, argv, dir, red, start, end, maxDist, minDist, octree, type, scanserver);
 
-#ifdef WITH_SCANSERVER
-  try {
-    ClientInterface::create();
-  } catch(std::runtime_error& e) {
-    cerr << "ClientInterface could not be created: " << e.what() << endl;
-    cerr << "Start the scanserver first." << endl;
+  Scan::openDirectory(scanserver, dir, type, start, end);
+
+  if(Scan::allScans.size() == 0) {
+    cerr << "No scans found. Did you use the correct format?" << endl;
     exit(-1);
   }
-#endif //WITH_SCANSERVER
 
-  // Get Scans
-#ifndef WITH_SCANSERVER
-  Scan::dir = dir;
-  int fileNr = start;
-#endif //WITH_SCANSERVER
   string reddir = dir + "reduced"; 
  
 #ifdef _MSC_VER
@@ -276,49 +276,17 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-#ifndef WITH_SCANSERVER
-  while (fileNr <= end) {
-    Scan::readScans(type, fileNr, fileNr, dir, maxDist, minDist, 0);
-    const double* rPos = Scan::allScans[0]->get_rPos();
-    const double* rPosTheta = Scan::allScans[0]->get_rPosTheta();
-    
-    // reduction filter for current scan!
-    
-    cout << "Reducing Scan No. " << fileNr << endl;
-    Scan::allScans[0]->calcReducedPoints(red, octree);
-    
-    
-    cout << "Writing Scan No. " << fileNr ;
-    cout << " with " << Scan::allScans[0]->get_points_red_size() << " points" << endl; 
-    string scanFileName;
-    string poseFileName;
-  
-    scanFileName = dir + "reduced/scan" + to_string(fileNr,3) + ".3d";
-    poseFileName = dir  + "reduced/scan" + to_string(fileNr,3) + ".pose";
-   
-     
-    ofstream redptsout(scanFileName.c_str());
-    for (int j = 0; j < Scan::allScans[0]->get_points_red_size(); j++) {
-         Point p(Scan::allScans[0]->get_points_red()[j]);
-         //Points in global coordinate system
-         redptsout << p.x << " " << p.y << " " << p.z << endl;
-         
-	  }
-    redptsout.close();
-    redptsout.clear();
-#else //WITH_SCANSERVER
-  Scan::readScans(type, start, end, dir, maxDist, minDist);
-  for(std::vector<Scan*>::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it)
-  {
+  for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
     Scan* scan = *it;
     const double* rPos = scan->get_rPos();
     const double* rPosTheta = scan->get_rPosTheta();
 
-    scan->calcReducedPoints(red, octree);
+    scan->setReductionParameter(red, octree);
+    scan->toGlobal();
 
     const char* id = scan->getIdentifier();
     cout << "Writing Scan No. " << id;
-    cout << " with " << scan->getCountReduced() << " points" << endl; 
+    cout << " with " << scan->size<DataXYZ>("xyz reduced") << " points" << endl; 
     string scanFileName;
     string poseFileName;
 
@@ -326,14 +294,13 @@ int main(int argc, char **argv)
     poseFileName = dir  + "reduced/scan" + id + ".pose";
 
     ofstream redptsout(scanFileName.c_str());
-    DataXYZ xyz_r(scan->getXYZReduced());
+    DataXYZ xyz_r(scan->get("xyz reduced"));
     for(unsigned int j = 0; j < xyz_r.size(); j++) {
       //Points in global coordinate system
       redptsout << xyz_r[j][0] << " " << xyz_r[j][1] << " " << xyz_r[j][2] << endl;
     }
     redptsout.close();
     redptsout.clear();
-#endif //WITH_SCANSERVER
     
     ofstream posout(poseFileName.c_str());
     
@@ -346,20 +313,9 @@ int main(int argc, char **argv)
     
     posout.close();
     posout.clear();
-
-#ifndef WITH_SCANSERVER
-    delete Scan::allScans[0];
-    Scan::allScans.clear();
-    fileNr++;
-#endif //WITH_SCANSERVER
   }
 
   cout << endl << endl;
   cout << "Normal program end." << endl << endl;
-
-#ifdef WITH_SCANSERVER
-  Scan::clearScans();
-  ClientInterface::destroy();
-#endif //WITH_SCANSERVER
 }
 
