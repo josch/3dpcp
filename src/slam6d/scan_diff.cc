@@ -151,12 +151,12 @@ int parseArgs(int argc, char **argv, string &dir,
     { "start",           required_argument,   0,  's' },
     { "end",             required_argument,   0,  'e' },
     { "dist",            required_argument,   0,  'd' },
-    { "scanserver",      required_argument,   0,  'S' },
+    { "scanserver",      no_argument,         0,  'S' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
 
   cout << endl;
-  while ((c = getopt_long(argc, argv, "f:d:s:e:m:M:", longopts, NULL)) != -1)
+  while ((c = getopt_long(argc, argv, "f:d:s:e:m:M:S", longopts, NULL)) != -1)
     switch (c)
 	 {
 	 case 'd':
