@@ -278,6 +278,7 @@ int main(int argc, char **argv)
 
   for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
     Scan* scan = *it;
+    scan->setRangeFilter(maxDist, minDist);
     const double* rPos = scan->get_rPos();
     const double* rPosTheta = scan->get_rPosTheta();
 

@@ -320,11 +320,10 @@ int main(int argc, char **argv)
 
   Scan::allScans[0]->setReductionParameter(-1, 0);
   Scan::allScans[0]->toGlobal();
-  //Scan::allScans[0]->transform(inMatrix0, Scan::INVALID);
+  Scan::allScans[0]->setRangeFilter(maxDist, minDist);
   Scan::allScans[endIndex]->setReductionParameter(-1, 0);
   Scan::allScans[endIndex]->toGlobal();
-  //Scan::allScans[endIndex]->calcReducedPoints();
-  //Scan::allScans[endIndex]->transform(inMatrix1, Scan::INVALID);
+  Scan::allScans[endIndex]->setRangeFilter(maxDist, minDist);
  
   cout  << Scan::allScans[0]->size<DataXYZ>("xyz reduced") 
         << " " << Scan::allScans[endIndex]->size<DataXYZ>("xyz reduced") << endl;
