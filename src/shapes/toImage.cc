@@ -245,7 +245,7 @@ void flip( const double *normal , double *n  ) {
   n[0] = normal[0];
   n[1] = normal[1];
   n[2] = 1;
-  toKartesian(n, k);
+  toCartesian(n, k);
   k[0] *= -1;
   k[1] *= -1;
   k[2] *= -1;
@@ -449,7 +449,7 @@ cout << "Cluster " << i << ":" << endl;
       n[0] = normal[0];
       n[1] = normal[1];
       n[2] = 1;
-      toKartesian(n, k);
+      toCartesian(n, k);
       cnorms[i][0] += k[0] * normal[2];
       cnorms[i][1] += k[1] * normal[2];
       cnorms[i][2] += k[2] * normal[2];

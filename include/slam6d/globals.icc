@@ -537,7 +537,7 @@ inline double polardist(double* p, double *p2) {
 
                         
 
-inline void toKartesian(double *polar, double *kart) {
+inline void toCartesian(double *polar, double *kart) {
   kart[0] = polar[2] * cos( polar[1] ) * sin( polar[0] );
   kart[1] = polar[2] * sin( polar[1] ) * sin( polar[0] );
   kart[2] = polar[2] * cos( polar[0] );
