@@ -108,6 +108,9 @@ void usage(char* prog)
 	  << endl
 	  << bold << "  -d" << normal << " NR, " << bold << "--dist=" << normal << "NR" << endl
 	  << "         write all points that have no corresponding point closer than NR 'units'" << endl
+	  << endl
+	  << bold << "  -S, --scanserver" << normal << endl
+	  << "         Use the scanserver as an input method and handling of scan data" << endl
     << endl << endl;
   
   cout << bold << "EXAMPLES " << normal << endl
@@ -132,7 +135,7 @@ void usage(char* prog)
  */
 int parseArgs(int argc, char **argv, string &dir, 
 		    int &start, int &end, int &maxDist, int &minDist, double &dist, 
-		    IOType &type, bool &desc)
+		    IOType &type, bool &desc, bool &scanserver)
 {
   int  c;
   // from unistd.h:
@@ -148,6 +151,7 @@ int parseArgs(int argc, char **argv, string &dir,
     { "start",           required_argument,   0,  's' },
     { "end",             required_argument,   0,  'e' },
     { "dist",            required_argument,   0,  'd' },
+    { "scanserver",      required_argument,   0,  'S' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
 
@@ -180,6 +184,9 @@ int parseArgs(int argc, char **argv, string &dir,
 	 case 'M':
 	   minDist = atoi(optarg);
 	   break;
+    case 'S':
+       scanserver = true;
+       break;
    case '?':
 	   usage(argv[0]);
 	   return 1;
@@ -239,24 +246,18 @@ int main(int argc, char **argv)
   int    maxDist    = -1;
   int    minDist    = -1;
   IOType type    = RIEGL_TXT;
-  bool desc = false;  
+  bool desc = false;
+  bool scanserver = false; 
 
-  parseArgs(argc, argv, dir, start, end, maxDist, minDist, dist, type, desc);
+  parseArgs(argc, argv, dir, start, end, maxDist, minDist, dist, type, desc, scanserver);
 
-#ifdef WITH_SCANSERVER
-  try {
-    ClientInterface::create();
-  } catch(std::runtime_error& e) {
-    cerr << "ClientInterface could not be created: " << e.what() << endl;
-    cerr << "Start the scanserver first." << endl;
+  Scan::openDirectory(scanserver, dir, type, start, end);
+
+  if(Scan::allScans.size() == 0) {
+    cerr << "No scans found. Did you use the correct format?" << endl;
     exit(-1);
   }
-#endif //WITH_SCANSERVER
 
-  // Get Scans (all scans between start and end)
-#ifndef WITH_SCANSERVER
-  Scan::dir = dir;
-#endif //WITH_SCANSERVER
   string diffdir = dir + "diff"; 
  
 #ifdef _MSC_VER
@@ -314,19 +315,22 @@ int main(int argc, char **argv)
   }
   cout << endl;
   
-  Scan::readScans(type, start, end, dir, maxDist, minDist, 0);
+  //Scan::readScans(type, start, end, dir, maxDist, minDist, 0);
   int endIndex = Scan::allScans.size() - 1;
 
-  Scan::allScans[0]->calcReducedPoints(-1, 0);
-  Scan::allScans[0]->transform(inMatrix0, Scan::INVALID);
-  Scan::allScans[endIndex]->calcReducedPoints(-1, 0);
-  Scan::allScans[endIndex]->transform(inMatrix1, Scan::INVALID);
+  Scan::allScans[0]->setReductionParameter(-1, 0);
+  Scan::allScans[0]->toGlobal();
+  //Scan::allScans[0]->transform(inMatrix0, Scan::INVALID);
+  Scan::allScans[endIndex]->setReductionParameter(-1, 0);
+  Scan::allScans[endIndex]->toGlobal();
+  //Scan::allScans[endIndex]->calcReducedPoints();
+  //Scan::allScans[endIndex]->transform(inMatrix1, Scan::INVALID);
  
-  cout  << Scan::allScans[0]->get_points_red_size() 
-        << " " << Scan::allScans[endIndex]->get_points_red_size() << endl;
+  cout  << Scan::allScans[0]->size<DataXYZ>("xyz reduced") 
+        << " " << Scan::allScans[endIndex]->size<DataXYZ>("xyz reduced") << endl;
 
   int thread_num = 0;
-  vector<double*> diff;
+  std::vector<double*> diff;
   double transMat[16];
   
   if(desc) {
