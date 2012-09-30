@@ -26,6 +26,8 @@ IF(WITH_TOOLS)
   add_executable(scan_diff scan_diff.cc)
   add_executable(scan_red scan_red.cc)
 
+  FIND_PACKAGE(OpenCV REQUIRED )
+
   IF(UNIX)
     target_link_libraries(convergence ${Boost_SYSTEM_LIBRARY})
     target_link_libraries(graph_balancer scan ${Boost_GRAPH_LIBRARY} ${Boost_SERIALIZATION_LIBRARY} ${Boost_REGEX_LIBRARY})
@@ -33,7 +35,7 @@ IF(WITH_TOOLS)
     target_link_libraries(pose2frames ${Boost_SYSTEM_LIBRARY})
     target_link_libraries(toGlobal scan)
     target_link_libraries(scan_diff scan dl ANN)
-    target_link_libraries(scan_red scan dl ANN)
+    target_link_libraries(scan_red scan dl ANN ${OpenCV_LIBS})
   ENDIF(UNIX)
 
   
