@@ -328,7 +328,7 @@ void equirectangular_reduction(Scan *scan, double resize, unsigned int width,
     unsigned int x, y;
     double xFactor = (double)width / 2 / M_PI;
     double yFactor = (double)height / ((MAX_ANGLE - MIN_ANGLE) / 180 * M_PI);
-    //shift all the valuse to positive points on image
+    //shift all the values to positive points on image
     cv::MatIterator_<cv::Vec4f> it, end;
     DataXYZ xyz(scan->get("xyz"));
     for(unsigned int i = 0; i < xyz.size(); ++i) {
@@ -386,7 +386,7 @@ void cylindrical_reduction(Scan *scan, double resize, unsigned int width,
     double xFactor = (double)width / 2 / M_PI;
     double yFactor = (double)height / (tan(MAX_ANGLE / 180.0 * M_PI) - tan(MIN_ANGLE / 180.0 * M_PI));
     double heightLow = tan((MIN_ANGLE)/180.0*M_PI);
-    //shift all the valuse to positive points on image
+    //shift all the values to positive points on image
     cv::MatIterator_<cv::Vec4f> it, end;
     DataXYZ xyz(scan->get("xyz"));
     for(unsigned int i = 0; i < xyz.size(); ++i) {
@@ -447,7 +447,7 @@ void mercator_reduction(Scan *scan, double resize, unsigned int width,
     double yFactor = (double)height / (log(tan(MAX_ANGLE/180.0*M_PI) + (1/cos(MAX_ANGLE/180.0*M_PI)))
             - log(tan(MIN_ANGLE/180.0*M_PI) + (1/cos(MIN_ANGLE/180.0*M_PI))));
     double heightLow = log(tan(MIN_ANGLE/180.0*M_PI) + (1/cos(MIN_ANGLE/180.0*M_PI)));
-    //shift all the valuse to positive points on image
+    //shift all the values to positive points on image
     cv::MatIterator_<cv::Vec4f> it, end;
     DataXYZ xyz(scan->get("xyz"));
     for(unsigned int i = 0; i < xyz.size(); ++i) {
@@ -490,6 +490,83 @@ void mercator_reduction(Scan *scan, double resize, unsigned int width,
             phi = j/xFactor/resize;
             polar[0] = 2.0/tan(pow(M_E, theta + heightLow)) - 0.5*M_PI;
             polar[1] = 2.0*M_PI - phi;
+            toCartesian(polar, kart);
+            result.push_back(cv::Vec3d(kart[1]*(-100), kart[2]*100, kart[0]*100));
+        }
+    }
+}
+
+/* FIXME: DOESNT WORK YET!! */
+void conic_reduction(Scan *scan, double resize, unsigned int width,
+       unsigned int height, std::vector<cv::Vec3d> &result)
+{
+    cv::Mat iMap(width, height, CV_32FC(1), cv::Scalar::all(0));
+
+    double kart[3], polar[3], phi, theta, range, lambda, rho;
+    unsigned int x, y;
+    double phi_0 = 0.0;
+    double lambda_0 = 0.0;
+    double phi_1 = 0.0;
+    double phi_2 = M_PI / 3.0; // 60 degrees
+    double n = 0.5*(sin(phi_1) + sin(phi_2));
+    double C = cos(phi_1)*cos(phi_1) + 2 * n * sin(phi_1);
+    double rho_0 = sqrt(C - 2 * n * sin(phi_0))/n;
+    double xshift = (sqrt(C+2*n)/n)*sin(n*(M_PI-lambda_0));
+    double pwidth = 2.0*xshift;
+    double yshift = rho_0-(sqrt(C-2*n)/n)*cos(n*(M_PI-lambda_0));
+    double pheight = (sqrt(C+2*n)/n)*cos(-n*lambda_0)-(sqrt(C-2*n)/n)*cos(n*(M_PI-lambda_0));
+    double xscale = width / pwidth;
+    double yscale = height / pheight;
+    double scale;
+    if (xscale < yscale)
+        scale = xscale;
+    else
+        scale = yscale;
+    //shift all the values to positive points on image
+    cv::MatIterator_<cv::Vec4f> it, end;
+    DataXYZ xyz(scan->get("xyz"));
+    for(unsigned int i = 0; i < xyz.size(); ++i) {
+        kart[0] = xyz[i][2]/100;
+        kart[1] = xyz[i][0]/-100;
+        kart[2] = xyz[i][1]/100;
+        toPolar(kart, polar);
+        phi = polar[0] - M_PI/2.0;
+        lambda = polar[1] - M_PI;
+        range = polar[2];
+        theta = n * (lambda - lambda_0);
+        rho = sqrt(C - 2 * n * sin(phi))/n;
+        x = (int) ((rho * sin(theta) + xshift)*scale);
+        if (x < 0) x = 0;
+        if (x > width - 1) x = width - 1;
+        y = (int) ((rho * cos(theta) - rho_0 + yshift)*scale);
+        if (y < 0) y = 0;
+        if (y > height - 1) y = height - 1;
+        // only map the nearest
+        if (iMap.at<float>(x, y) > range || iMap.at<float>(x, y) == 0)
+            iMap.at<float>(x, y) = range;
+    }
+
+    cv::Mat destMat;
+    if (resize != 1.0) {
+        destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
+        cv::resize(iMap, destMat, destMat.size(), 0, 0);
+    } else {
+        destMat.create(width, height, CV_32FC(1));
+        destMat = iMap;
+    }
+
+    for (int i = 0; i < destMat.size().width; ++i) {
+        for (int j = 0; j < destMat.size().height; ++j) {
+            range = destMat.at<float>(j, i);
+            if (range == 0.0)
+                continue;
+            polar[2] = range;
+            rho = sqrt(sqr(j/scale/resize+xshift) + sqr(i/scale/resize - yshift + rho_0));
+            theta = 1/((j/scale/resize+xshift)/(i/scale/resize - yshift + rho_0));
+            phi = 1/sin((C-rho*rho*n*n)/(2*n));
+            lambda = lambda_0 + theta/n;
+            polar[0] = phi + M_PI/2.0;
+            polar[1] = lambda + M_PI;
             toCartesian(polar, kart);
             result.push_back(cv::Vec3d(kart[1]*(-100), kart[2]*100, kart[0]*100));
         }
@@ -585,7 +662,11 @@ int main(int argc, char **argv)
             cylindrical_reduction(scan, resize, width, height, xyz_r);
             break;
         case MERCATOR:
+            /*mercator_reduction(scan, resize, width, height, xyz_r);
+            break;*/
         case CONIC:
+            /*conic_reduction(scan, resize, width, height, xyz_r);
+            break;*/
         default:
             throw std::runtime_error(std::string("not implemented"));
     }
