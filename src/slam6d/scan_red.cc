@@ -351,6 +351,7 @@ void equirectangular_reduction(Scan *scan, double resize, unsigned int width,
             iMap.at<float>(x, y) = range;
     }
 
+    // resize image
     cv::Mat destMat;
     if (resize != 1.0) {
         destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
@@ -360,6 +361,7 @@ void equirectangular_reduction(Scan *scan, double resize, unsigned int width,
         destMat = iMap;
     }
 
+    // convert back from range image to 3d coordinates
     for (int i = 0; i < destMat.size().width; ++i) {
         for (int j = 0; j < destMat.size().height; ++j) {
             range = destMat.at<float>(j, i);
@@ -409,6 +411,7 @@ void cylindrical_reduction(Scan *scan, double resize, unsigned int width,
             iMap.at<float>(x, y) = range;
     }
 
+    // resize image
     cv::Mat destMat;
     if (resize != 1.0) {
         destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
@@ -418,6 +421,7 @@ void cylindrical_reduction(Scan *scan, double resize, unsigned int width,
         destMat = iMap;
     }
 
+    // convert back from range image to 3d coordinates
     for (int i = 0; i < destMat.size().width; ++i) {
         for (int j = 0; j < destMat.size().height; ++j) {
             range = destMat.at<float>(j, i);
@@ -471,6 +475,7 @@ void mercator_reduction(Scan *scan, double resize, unsigned int width,
             iMap.at<float>(x, y) = range;
     }
 
+    // resize image
     cv::Mat destMat;
     if (resize != 1.0) {
         destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
@@ -480,6 +485,7 @@ void mercator_reduction(Scan *scan, double resize, unsigned int width,
         destMat = iMap;
     }
 
+    // convert back from range image to 3d coordinates
     for (int i = 0; i < destMat.size().width; ++i) {
         for (int j = 0; j < destMat.size().height; ++j) {
             range = destMat.at<float>(j, i);
@@ -546,6 +552,7 @@ void conic_reduction(Scan *scan, double resize, unsigned int width,
             iMap.at<float>(x, y) = range;
     }
 
+    // resize image
     cv::Mat destMat;
     if (resize != 1.0) {
         destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
