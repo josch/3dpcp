@@ -67,6 +67,15 @@ using std::ofstream;
 #include <dlfcn.h>
 #endif
 
+#include <opencv2/opencv.hpp>
+
+enum red_method {
+OCTREE,
+EQUIRECTANGULAR,
+CYLINDRICAL,
+MERCATOR,
+CONIC
+};
 
 /**
  * Explains the usage of this program's command line parameters
@@ -105,9 +114,20 @@ void usage(char* prog)
 	  << "         start at scan NR (i.e., neglects the first NR scans)" << endl
 	  << "         [ATTENTION: counting naturally starts with 0]" << endl
 	  << endl
-         << endl
          << bold << "  -S, --scanserver" << normal << endl
          << "         Use the scanserver as an input method and handling of scan data" << endl
+	     << endl
+         << bold << "  -R, --reductionmethod" << normal << endl
+         << "         Method for reduction [OCTREE|EQUIRECTANGULAR|CYLINDRICAL|MERCATOR|CONIC] default: OCTREE" << endl
+	     << endl
+         << bold << "  -z, --resize" << normal << endl
+         << "         factor by which to resize the range image" << endl
+	     << endl
+         << bold << "  -w, --width" << normal << endl
+         << "         width of range image (default: 800)" << endl
+	     << endl
+         << bold << "  -h, --height" << normal << endl
+         << "         height of range image (default: 600)" << endl
     	  << endl << endl;
   
   cout << bold << "EXAMPLES " << normal << endl
@@ -115,6 +135,16 @@ void usage(char* prog)
 	  << "   " << prog << " --max=5000 -r 10.2 dat" << endl
 	  << "   " << prog << " -s 2 -e 10 -r dat" << endl << endl;
   exit(1);
+}
+
+red_method string_to_reduction_method(string method)
+{
+    if(strcasecmp(method.c_str(), "OCTREE") == 0) return OCTREE;
+    else if(strcasecmp(method.c_str(), "EQUIRECTANGULAR") == 0) return EQUIRECTANGULAR;
+    else if(strcasecmp(method.c_str(), "CYLINDRICAL") == 0) return CYLINDRICAL;
+    else if(strcasecmp(method.c_str(), "MERCATOR") == 0) return MERCATOR;
+    else if(strcasecmp(method.c_str(), "CONIC") == 0) return CONIC;
+    else throw std::runtime_error(std::string("reduction method ")+method+std::string(" is unknown"));
 }
 
 /** A function that parses the command-line arguments and sets the respective flags.
@@ -133,9 +163,13 @@ void usage(char* prog)
  */
 int parseArgs(int argc, char **argv, string &dir, double &red, 
 		    int &start, int &end, int &maxDist, int &minDist, int &octree, 
-		    IOType &type, bool &scanserver)
+		    IOType &type, bool &scanserver, red_method &rmethod, double &resize,
+            unsigned int &width, unsigned int &height)
 {
   bool reduced = false;
+  bool resized = false;
+  bool setwidth = false;
+  bool setheight = false;
   int  c;
   // from unistd.h:
   extern char *optarg;
@@ -151,12 +185,16 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
     { "end",             required_argument,   0,  'e' },
     { "reduce",          required_argument,   0,  'r' },
     { "octree",          optional_argument,   0,  'O' },
-    { "scanserver",      optional_argument,   0,  'S' },
+    { "scanserver",      no_argument,         0,  'S' },
+    { "reductionmethod", required_argument,   0,  'R' },
+    { "resize",          required_argument,   0,  'z' },
+    { "width",           required_argument,   0,  'w' },
+    { "height",          required_argument,   0,  'h' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
 
   cout << endl;
-  while ((c = getopt_long(argc, argv, "f:r:s:e:m:M:O:", longopts, NULL)) != -1)
+  while ((c = getopt_long(argc, argv, "f:r:s:e:m:M:O:SR:z:w:h:", longopts, NULL)) != -1)
     switch (c)
 	 {
 	 case 'r':
@@ -196,6 +234,21 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
     case 'S':
        scanserver = true;
        break;
+    case 'R':
+       rmethod = string_to_reduction_method(optarg);
+       break;
+    case 'z':
+       resize = atof(optarg);
+       resized = true;
+       break;
+    case 'w':
+       width = atoi(optarg);
+       setwidth = true;
+       break;
+    case 'h':
+       height = atoi(optarg);
+       setheight = true;
+       break;
    case '?':
 	   usage(argv[0]);
 	   return 1;
@@ -203,10 +256,40 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
 	   abort ();
       }
 
-  if(!reduced) {
-    cerr << "\n*** Reduction method missed ***" << endl;
-    usage(argv[0]);
+  // some arguments only hold when octree is chosen
+  switch (rmethod) {
+      case OCTREE:
+          if(!reduced) {
+            cerr << "\n*** Reduction method missed ***" << endl;
+            usage(argv[0]);
+          }
+          if(resized) {
+              cerr << "\n*** No resizing allowed in octree mode ***" << endl;
+              usage(argv[0]);
+          }
+          if(setwidth) {
+              cerr << "\n*** You cannot set width in octree mode ***" << endl;
+              usage(argv[0]);
+          }
+          if(setheight) {
+              cerr << "\n*** You cannot set height in octree mode ***" << endl;
+              usage(argv[0]);
+          }
+          break;
+      case EQUIRECTANGULAR:
+      case CYLINDRICAL:
+      case MERCATOR:
+      case CONIC:
+          if(octree) {
+              cerr << "\n*** -O can only be specified when choosing octree reduction ***" << endl;
+              usage(argv[0]);
+          }
+          if(reduced) {
+              cerr << "\n*** -r can only be specified when choosing octree reduction ***" << endl;
+              usage(argv[0]);
+          }
   }
+
   if (optind != argc-1) {
     cerr << "\n*** Directory missing ***" << endl;
     usage(argv[0]);
@@ -220,6 +303,197 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
 #endif
 
   return 0;
+}
+
+void octree_reduction(Scan *scan, double red, int octree, std::vector<cv::Vec3d> &result)
+{
+    scan->setReductionParameter(red, octree);
+    scan->toGlobal();
+    DataXYZ xyz_r(scan->get("xyz reduced"));
+    for(unsigned int j = 0; j < xyz_r.size(); j++) {
+        result.push_back(cv::Vec3d(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]));
+    }
+}
+
+//Vertical angle of view of scanner
+#define MAX_ANGLE 60.0
+#define MIN_ANGLE -40.0
+
+void equirectangular_reduction(Scan *scan, double resize, unsigned int width,
+       unsigned int height, std::vector<cv::Vec3d> &result)
+{
+    cv::Mat iMap(width, height, CV_32FC(1), cv::Scalar::all(0));
+
+    double kart[3], polar[3], phi, theta, range;
+    unsigned int x, y;
+    double xFactor = (double)width / 2 / M_PI;
+    double yFactor = (double)height / ((MAX_ANGLE - MIN_ANGLE) / 180 * M_PI);
+    //shift all the valuse to positive points on image
+    cv::MatIterator_<cv::Vec4f> it, end;
+    DataXYZ xyz(scan->get("xyz"));
+    for(unsigned int i = 0; i < xyz.size(); ++i) {
+        kart[0] = xyz[i][2]/100;
+        kart[1] = xyz[i][0]/-100;
+        kart[2] = xyz[i][1]/100;
+        toPolar(kart, polar);
+        //horizontal angle of view of [0:360] and vertical of [-40:60]
+        theta = 0.5*M_PI - polar[0] - MIN_ANGLE/180.0 * M_PI;
+        phi = 2.0*M_PI - polar[1];
+        range = polar[2];
+        x = (int) (xFactor * phi);
+        if (x < 0) x = 0;
+        if (x > width - 1) x = width - 1;
+        y = (int) (yFactor * theta);
+        if (y < 0) y = 0;
+        if (y > height - 1) y = height - 1;
+        // only map the nearest
+        if (iMap.at<float>(x, y) > range || iMap.at<float>(x, y) == 0)
+            iMap.at<float>(x, y) = range;
+    }
+
+    cv::Mat destMat;
+    if (resize != 1.0) {
+        destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
+        cv::resize(iMap, destMat, destMat.size(), 0, 0);
+    } else {
+        destMat.create(width, height, CV_32FC(1));
+        destMat = iMap;
+    }
+
+    for (int i = 0; i < destMat.size().width; ++i) {
+        for (int j = 0; j < destMat.size().height; ++j) {
+            range = destMat.at<float>(j, i);
+            if (range == 0.0)
+                continue;
+            polar[2] = range;
+            theta = i/yFactor/resize;
+            phi = j/xFactor/resize;
+            polar[0] = 0.5*M_PI - theta - MIN_ANGLE/180.0 * M_PI;
+            polar[1] = 2.0*M_PI - phi;
+            toCartesian(polar, kart);
+            result.push_back(cv::Vec3d(kart[1]*(-100), kart[2]*100, kart[0]*100));
+        }
+    }
+}
+
+void cylindrical_reduction(Scan *scan, double resize, unsigned int width,
+       unsigned int height, std::vector<cv::Vec3d> &result)
+{
+    cv::Mat iMap(width, height, CV_32FC(1), cv::Scalar::all(0));
+
+    double kart[3], polar[3], phi, theta, range;
+    unsigned int x, y;
+    double xFactor = (double)width / 2 / M_PI;
+    double yFactor = (double)height / (tan(MAX_ANGLE / 180.0 * M_PI) - tan(MIN_ANGLE / 180.0 * M_PI));
+    double heightLow = tan((MIN_ANGLE)/180.0*M_PI);
+    //shift all the valuse to positive points on image
+    cv::MatIterator_<cv::Vec4f> it, end;
+    DataXYZ xyz(scan->get("xyz"));
+    for(unsigned int i = 0; i < xyz.size(); ++i) {
+        kart[0] = xyz[i][2]/100;
+        kart[1] = xyz[i][0]/-100;
+        kart[2] = xyz[i][1]/100;
+        toPolar(kart, polar);
+        //horizontal angle of view of [0:360] and vertical of [-40:60]
+        phi = 2.0* M_PI - polar[1];
+        theta = tan(0.5*M_PI - polar[0]) - heightLow;
+        range = polar[2];
+        x = (int) (xFactor * phi);
+        if (x < 0) x = 0;
+        if (x > width - 1) x = width - 1;
+        y = (int) (yFactor * theta);
+        if (y < 0) y = 0;
+        if (y > height - 1) y = height - 1;
+        // only map the nearest
+        if (iMap.at<float>(x, y) > range || iMap.at<float>(x, y) == 0)
+            iMap.at<float>(x, y) = range;
+    }
+
+    cv::Mat destMat;
+    if (resize != 1.0) {
+        destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
+        cv::resize(iMap, destMat, destMat.size(), 0, 0);
+    } else {
+        destMat.create(width, height, CV_32FC(1));
+        destMat = iMap;
+    }
+
+    for (int i = 0; i < destMat.size().width; ++i) {
+        for (int j = 0; j < destMat.size().height; ++j) {
+            range = destMat.at<float>(j, i);
+            if (range == 0.0)
+                continue;
+            polar[2] = range;
+            theta = i/yFactor/resize;
+            phi = j/xFactor/resize;
+            polar[0] = 0.5*M_PI - atan(theta+heightLow);
+            polar[1] = 2.0*M_PI - phi;
+            toCartesian(polar, kart);
+            result.push_back(cv::Vec3d(kart[1]*(-100), kart[2]*100, kart[0]*100));
+        }
+    }
+}
+
+
+/* FIXME: DOESNT WORK YET!! */
+void mercator_reduction(Scan *scan, double resize, unsigned int width,
+       unsigned int height, std::vector<cv::Vec3d> &result)
+{
+    cv::Mat iMap(width, height, CV_32FC(1), cv::Scalar::all(0));
+
+    double kart[3], polar[3], phi, theta, range;
+    unsigned int x, y;
+    double xFactor = (double)width / 2 / M_PI;
+    double yFactor = (double)height / (log(tan(MAX_ANGLE/180.0*M_PI) + (1/cos(MAX_ANGLE/180.0*M_PI)))
+            - log(tan(MIN_ANGLE/180.0*M_PI) + (1/cos(MIN_ANGLE/180.0*M_PI))));
+    double heightLow = log(tan(MIN_ANGLE/180.0*M_PI) + (1/cos(MIN_ANGLE/180.0*M_PI)));
+    //shift all the valuse to positive points on image
+    cv::MatIterator_<cv::Vec4f> it, end;
+    DataXYZ xyz(scan->get("xyz"));
+    for(unsigned int i = 0; i < xyz.size(); ++i) {
+        kart[0] = xyz[i][2]/100;
+        kart[1] = xyz[i][0]/-100;
+        kart[2] = xyz[i][1]/100;
+        toPolar(kart, polar);
+        //horizontal angle of view of [0:360] and vertical of [-40:60]
+        range = polar[2];
+        phi = 2.0*M_PI - polar[1];
+        theta = 0.5*M_PI - polar[0];
+        theta = log(tan(theta) + (1/cos(theta))) - heightLow;
+        x = (int) (xFactor * phi);
+        if (x < 0) x = 0;
+        if (x > width - 1) x = width - 1;
+        y = height - 1 - (int) (yFactor * theta);
+        if (y < 0) y = 0;
+        if (y > height - 1) y = height - 1;
+        // only map the nearest
+        if (iMap.at<float>(x, y) > range || iMap.at<float>(x, y) == 0)
+            iMap.at<float>(x, y) = range;
+    }
+
+    cv::Mat destMat;
+    if (resize != 1.0) {
+        destMat.create((int)(width*resize), (int)(height*resize), CV_32FC(1));
+        cv::resize(iMap, destMat, destMat.size(), 0, 0);
+    } else {
+        destMat.create(width, height, CV_32FC(1));
+        destMat = iMap;
+    }
+
+    for (int i = 0; i < destMat.size().width; ++i) {
+        for (int j = 0; j < destMat.size().height; ++j) {
+            range = destMat.at<float>(j, i);
+            if (range == 0.0)
+                continue;
+            polar[2] = range;
+            theta = (height*resize-1-i)/yFactor/resize;
+            phi = j/xFactor/resize;
+            polar[0] = 2.0/tan(pow(M_E, theta + heightLow)) - 0.5*M_PI;
+            polar[1] = 2.0*M_PI - phi;
+            toCartesian(polar, kart);
+            result.push_back(cv::Vec3d(kart[1]*(-100), kart[2]*100, kart[0]*100));
+        }
+    }
 }
 
 
@@ -249,9 +523,14 @@ int main(int argc, char **argv)
   int    minDist    = -1;
   int    octree     = 0;
   bool   scanserver = false;
+  double resize     = 1.0;
+  unsigned int width = 800;
+  unsigned int height = 600;
+  red_method rmethod = OCTREE;
   IOType type    = RIEGL_TXT;
   
-  parseArgs(argc, argv, dir, red, start, end, maxDist, minDist, octree, type, scanserver);
+  parseArgs(argc, argv, dir, red, start, end, maxDist, minDist, octree, type,
+          scanserver, rmethod, resize, width, height);
 
   Scan::openDirectory(scanserver, dir, type, start, end);
 
@@ -282,12 +561,9 @@ int main(int argc, char **argv)
     const double* rPos = scan->get_rPos();
     const double* rPosTheta = scan->get_rPosTheta();
 
-    scan->setReductionParameter(red, octree);
-    scan->toGlobal();
-
     const char* id = scan->getIdentifier();
     cout << "Writing Scan No. " << id;
-    cout << " with " << scan->size<DataXYZ>("xyz reduced") << " points" << endl; 
+    cout << " with " << scan->size<DataXYZ>("xyz") << " points" << endl; 
     string scanFileName;
     string poseFileName;
 
@@ -295,11 +571,29 @@ int main(int argc, char **argv)
     poseFileName = dir  + "reduced/scan" + id + ".pose";
 
     ofstream redptsout(scanFileName.c_str());
-    DataXYZ xyz_r(scan->get("xyz reduced"));
-    for(unsigned int j = 0; j < xyz_r.size(); j++) {
-      //Points in global coordinate system
-      redptsout << xyz_r[j][0] << " " << xyz_r[j][1] << " " << xyz_r[j][2] << endl;
+
+    std::vector<cv::Vec3d> xyz_r;
+
+    switch (rmethod) {
+        case OCTREE:
+            octree_reduction(scan, red, octree, xyz_r);
+            break;
+        case EQUIRECTANGULAR:
+            equirectangular_reduction(scan, resize, width, height, xyz_r);
+            break;
+        case CYLINDRICAL:
+            cylindrical_reduction(scan, resize, width, height, xyz_r);
+            break;
+        case MERCATOR:
+        case CONIC:
+        default:
+            throw std::runtime_error(std::string("not implemented"));
     }
+
+    for(std::vector<cv::Vec3d>::iterator it = xyz_r.begin(); it < xyz_r.end(); ++it) {
+        redptsout << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << endl;
+    }
+
     redptsout.close();
     redptsout.clear();
     
