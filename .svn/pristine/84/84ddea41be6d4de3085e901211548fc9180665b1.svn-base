@@ -1,13 +1,13 @@
 /*
  * pointfilter implementation
  *
- * Copyright (C) Thomas Escher, Dorit Borrmann, Kai Lingemann
+ * Copyright (C) Dorit Borrmann, Jan Elseberg
  *
  * Released under the GPL version 3.
  *
  */
 
-#include "scanserver/pointfilter.h"
+#include "slam6d/pointfilter.h"
 
 using std::string;
 using std::map;
@@ -20,9 +20,11 @@ using std::runtime_error;
 using std::cout;
 using std::endl;
 
+#include <cmath>
 
 
-map<string, Checker* (*)(const string&)> PointFilter::factory;
+
+map<string, Checker* (*)(const string&)>* PointFilter::factory = new map<string, Checker* (*)(const string&)>;
 
 
 
@@ -57,7 +59,7 @@ PointFilter::~PointFilter()
     delete m_checker;
 }
 
-PointFilter& PointFilter::setRange(float maxDist, float minDist)
+PointFilter& PointFilter::setRange(double maxDist, double minDist)
 {
   m_changed = true;
   stringstream s_max; s_max << maxDist;
@@ -74,6 +76,14 @@ PointFilter& PointFilter::setHeight(double top, double bottom)
   stringstream s_bottom; s_bottom << bottom;
   m_params["heighttop"] = s_top.str();
   m_params["heightbottom"] = s_bottom.str();
+  return *this;
+}
+
+PointFilter& PointFilter::setRangeMutator(double range)
+{
+  m_changed = true;
+  stringstream s_range; s_range << range;
+  m_params["rangemutation"] = s_range.str();
   return *this;
 }
 
@@ -97,7 +107,7 @@ void PointFilter::createCheckers()
   // create new ones
   Checker** current = &m_checker;
   for(map<string, string>::iterator it = m_params.begin(); it != m_params.end(); ++it) {
-    *current = factory[it->first](it->second);
+    *current = (*factory)[it->first](it->second);
     // if a Checker has been successfully created advance to its pointer in the chain
     if(*current) {
       current = &((*current)->m_next);
@@ -126,6 +136,7 @@ namespace {
   CheckerFactory<CheckerRangeMin> min("rangemin");
   CheckerFactory<CheckerHeightTop> top("heighttop");
   CheckerFactory<CheckerHeightBottom> bottom("heightbottom");
+  CheckerFactory<RangeMutator> range_mutation("rangemutation");
 }
 
 
@@ -184,4 +195,19 @@ bool CheckerHeightBottom::test(double* point) {
   if(point[1] > m_bottom)
     return true;
   return false;
+}
+
+RangeMutator::RangeMutator(const std::string& value) {
+  stringstream s(value);
+  s >> m_range;
+}
+
+bool RangeMutator::test(double* point) {
+  double orig_range = sqrt(point[0]*point[0] + point[1]*point[1] + point[2]*point[2]);
+  double scale_mutation = m_range / orig_range;
+  point[0] *= scale_mutation;
+  point[1] *= scale_mutation;
+  point[2] *= scale_mutation;
+
+  return true;
 }
