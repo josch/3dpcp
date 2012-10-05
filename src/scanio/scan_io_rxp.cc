@@ -219,16 +219,26 @@ void importer::on_echo_transformed(echo_type echo)
   // indexed by target_count-1.
   target& t(targets[target_count - 1]);
 
-  double point[3];
+  double point[3], polar[3];
   point[0] = t.vertex[1]*-100.0;
   point[1] = t.vertex[2]*100.0;
   point[2] = t.vertex[0]*100.0;
-  
+  toPolar(point, polar);
+  double range = polar[2];
+
   if(filter->check(point)) {
     if(xyz) {
-      for(unsigned int i = 0; i < 3; ++i) xyz->push_back(point[i]);
+      //cout << range << "\n";
+      if( range < 100.0) {      
+        for(unsigned int i = 0; i < 3; ++i) xyz->push_back(point[i]);
+      }
     }
-    if(reflectance) reflectance->push_back(t.reflectance);
+    if(reflectance) {
+      //cout << t.reflectance << "\n";
+      if (t.reflectance > 20.0) {      
+        reflectance->push_back(t.reflectance);
+      }
+    }
     if(amplitude) amplitude->push_back(t.amplitude);
     if(deviation) deviation->push_back(t.deviation);
     if(type) {
