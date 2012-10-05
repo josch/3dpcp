@@ -164,6 +164,17 @@ ELSE(WITH_TOOLS)
   MESSAGE(STATUS "Without Tools")
 ENDIF(WITH_TOOLS)
 
+## Segmentation
+
+OPTION(WITH_SEGMENTATION "Whether to build scan2segment. ON/OFF" OFF)
+
+IF(WITH_SEGMENTATION)
+  MESSAGE(STATUS "With segmentation")
+  find_package (Boost COMPONENTS program_options REQUIRED)
+ELSE(WITH_SEGMENTATION)
+  MESSAGE(STATUS "Without segmentation")
+ENDIF(WITH_SEGMENTATION)
+
 
 
 ## Scan reduction
@@ -395,9 +406,8 @@ add_subdirectory(src/grid)
 add_subdirectory(src/pmd)
 add_subdirectory(src/shapes)
 add_subdirectory(src/thermo)
-IF(WITH_FBR)
-  add_subdirectory(src/slam6d/fbr)
-ENDIF(WITH_FBR)
+add_subdirectory(src/segmentation)
+add_subdirectory(src/slam6d/fbr)
 add_subdirectory(src/scanner)
 add_subdirectory(src/model)
 

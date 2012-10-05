@@ -1,0 +1,88 @@
+//namespace po = boost::program_options;
+
+#include "slam6d/globals.icc"
+
+#include <string>
+using std::string;
+
+#include <iostream>
+using std::cout;
+using std::endl;
+
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
+
+/* Function used to check that 'opt1' and 'opt2' are not specified
+   at the same time. */
+void conflicting_options(const po::variables_map & vm,
+			 const char *opt1, const char *opt2)
+{
+    if (vm.count(opt1) && !vm[opt1].defaulted()
+	&& vm.count(opt2) && !vm[opt2].defaulted())
+	throw std::logic_error(string("Conflicting options '")
+			       + opt1 + "' and '" + opt2 + "'.");
+}
+
+/* Function used to check that of 'for_what' is specified, then
+   'required_option' is specified too. */
+void option_dependency(const po::variables_map & vm,
+		       const char *for_what, const char *required_option)
+{
+    if (vm.count(for_what) && !vm[for_what].defaulted())
+	if (vm.count(required_option) == 0
+	    || vm[required_option].defaulted())
+	    throw std::logic_error(string("Option '") + for_what +
+				   "' requires option '" +
+				   required_option + "'.");
+}
+
+void parse_options(int argc, char **argv)
+{
+    po::options_description generic("Generic options");
+    generic.add_options()
+	("help,h", "output this help message");
+
+    po::options_description input("Input options");
+    input.add_options()
+	("start,s", po::value < int >()->default_value(0),
+	 "start at scan <arg> (i.e., neglects the first <arg> scans) "
+	 "[ATTENTION: counting naturally starts with 0]")
+	("end,e", po::value < int >()->default_value(-1),
+	 "end after scan <arg>");
+
+    po::options_description image("Panorama image options");
+    image.add_options()
+	("range,r", "create range image")
+	("intensity,i", "create intensity image")
+	("width,w", "width of panorama")
+	("height,h", "height of panorama")
+	("panorama,p", "panorama type");
+
+    po::options_description segment("Segmentation options");
+    segment.add_options()
+	("segment,g", "segmentation method");
+
+    po::options_description all;
+    all.add(generic).add(input).add(image).add(segment);
+
+    po::positional_options_description pd;
+    pd.add("input directory", -1);
+
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).options(all).
+	      positional(pd).run(), vm);
+    po::notify(vm);
+
+    if (vm.count("help")) {
+	cout << all;
+	exit(0);
+    }
+
+    conflicting_options(vm, "range", "intensity");
+}
+
+int main(int argc, char **argv)
+{
+    parse_options(argc, argv);
+    cout << "foobar" << endl;
+}
