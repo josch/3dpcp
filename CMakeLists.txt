@@ -164,6 +164,16 @@ ELSE(WITH_TOOLS)
   MESSAGE(STATUS "Without Tools")
 ENDIF(WITH_TOOLS)
 
+## Mirror Detection
+
+OPTION(WITH_MIRRORDETECTION "Whether to build mirrordetection. ON/OFF" OFF)
+
+IF(WITH_MIRRORDETECTION)
+  MESSAGE(STATUS "With mirror detection")
+  find_package (Boost COMPONENTS program_options REQUIRED)
+ELSE(WITH_SEGMENTATION)
+  MESSAGE(STATUS "Without mirror detection")
+ENDIF(WITH_MIRRORDETECTION)
 
 
 ## CAD matching
@@ -379,6 +389,7 @@ add_subdirectory(src/thermo)
 IF(WITH_FBR)
   add_subdirectory(src/slam6d/fbr)
 ENDIF(WITH_FBR)
+add_subdirectory(src/mirrordetection)
 add_subdirectory(src/scanner)
 add_subdirectory(src/model)
 
