@@ -92,11 +92,11 @@ void convertToMat(Scan* scan, cv::Mat& scan_cv)
   DataXYZ xyz = scan->get("xyz");
   DataReflectance xyz_reflectance = scan->get("reflectance");
   unsigned int nPoints = xyz.size();
-  scan_cv.create(nPoints,1,CV_32FC(4));
+  scan_cv.create(nPoints,1,CV_32FC(3));
   scan_cv = cv::Scalar::all(0); 
   double zMax = numeric_limits<double>::min(); 
   double zMin = numeric_limits<double>::max();
-  cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
+  cv::MatIterator_<cv::Vec3f> it = scan_cv.begin<cv::Vec3f>();
   for(unsigned int i = 0; i < nPoints; i++) {
     float x, y, z, reflectance;
     x = xyz[i][0];
@@ -113,7 +113,7 @@ void convertToMat(Scan* scan, cv::Mat& scan_cv)
     (*it)[0] = x;
     (*it)[1] = y;
     (*it)[2] = z;
-    (*it)[3] = reflectance;
+    //(*it)[3] = reflectance;
     //finding min and max of z                                      
     if (z > zMax) zMax = z;
     if (z < zMin) zMin = z;
@@ -143,13 +143,48 @@ int main(int argc, char **argv)
         Scan* scan = *it;
         scan->setRangeFilter(maxDist, minDist);
 
-        Mat scan_cv;
-        convertToMat(scan, scan_cv);
+        Mat samples;
+        convertToMat(scan, samples); //samples is 1 x number_of_points
 
         int cluster_count = 2;
         Mat labels;
         int attempts = 5;
         Mat centers;
-        kmeans(scan_cv, cluster_count, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 0.0001, 10000), attempts, KMEANS_PP_CENTERS, centers );
-    }
+        kmeans(samples, cluster_count, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001), attempts, KMEANS_PP_CENTERS, centers );
+
+        cout << "Samples size: " << samples.size().width << " x " << samples.size().height << endl;
+        cout << "Centers size: " << centers.size().width << " x " << centers.size().height << endl;
+        cout << "Labels size: " << labels.size().width << " x " << labels.size().height << endl;
+
+        ofstream cluster1, cluster2; 
+        cluster1.open( (dir + "scan100.3d").c_str() );
+        cluster2.open( (dir + "scan101.3d").c_str() );
+        for (int i = 0; i < samples.rows; ++i) {
+          int cluster_idx = labels.at<int>(i, 0); // labels is 1 x number_of_points
+          switch (cluster_idx) {
+            case 0: 
+              {         
+                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);   
+                for (int j = 0; j < 3; ++j) {          
+                  cluster1 << entry(j) << " ";
+                }                          
+                cluster1 << endl;
+              }
+              break;
+            case 1:
+              {         
+                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);   
+                for (int j = 0; j < 3; ++j) {          
+                  cluster2 << entry(j) << " ";
+                }                          
+                cluster2 << endl;
+              }
+              break;
+            default:
+              break;
+          }
+        }
+        cluster1.close();
+        cluster2.close();
+     }
 }
