@@ -1,15 +1,18 @@
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
 
-#include <string>
-using std::string;
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
 
+#include <string>
 #include <iostream>
-using std::cout;
-using std::endl;
+#include <limits>
 
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
+
+using namespace cv;
+using namespace std;
 
 /*
  * validates input type specification
@@ -84,6 +87,40 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
+void convertToMat(Scan* scan, cv::Mat& scan_cv) 
+{
+  DataXYZ xyz = scan->get("xyz");
+  DataReflectance xyz_reflectance = scan->get("reflectance");
+  unsigned int nPoints = xyz.size();
+  scan_cv.create(nPoints,1,CV_32FC(4));
+  scan_cv = cv::Scalar::all(0); 
+  double zMax = numeric_limits<double>::min(); 
+  double zMin = numeric_limits<double>::max();
+  cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
+  for(unsigned int i = 0; i < nPoints; i++) {
+    float x, y, z, reflectance;
+    x = xyz[i][0];
+    y = xyz[i][1];
+    z = xyz[i][2];
+    reflectance = xyz_reflectance[i];
+    //normalize the reflectance                                     
+    reflectance += 32;
+    reflectance /= 64;
+    reflectance -= 0.2;
+    reflectance /= 0.3;
+    if (reflectance < 0) reflectance = 0;
+    if (reflectance > 1) reflectance = 1;
+    (*it)[0] = x;
+    (*it)[1] = y;
+    (*it)[2] = z;
+    (*it)[3] = reflectance;
+    //finding min and max of z                                      
+    if (z > zMax) zMax = z;
+    if (z < zMin) zMin = z;
+    ++it;
+  }
+}
+
 int main(int argc, char **argv)
 {
     int start, end;
@@ -105,5 +142,14 @@ int main(int argc, char **argv)
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
         Scan* scan = *it;
         scan->setRangeFilter(maxDist, minDist);
+
+        Mat scan_cv;
+        convertToMat(scan, scan_cv);
+
+        int cluster_count = 2;
+        Mat labels;
+        int attempts = 5;
+        Mat centers;
+        kmeans(scan_cv, cluster_count, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 0.0001, 10000), attempts, KMEANS_PP_CENTERS, centers );
     }
 }

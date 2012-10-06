@@ -235,9 +235,7 @@ void importer::on_echo_transformed(echo_type echo)
         if(point[1] < 20.0 && point[1] > -48.0 && point[0] > -105 && point[0] < 82 && point[2] > -160) {
           for(unsigned int i = 0; i < 3; ++i) {
             xyz->push_back(point[i]);
-            //cout << point[i] << " ";
           }
-          //cout << t.reflectance << endl;
         }
       }
     }
