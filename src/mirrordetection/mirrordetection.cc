@@ -11,6 +11,9 @@
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 
+#include <sys/stat.h>
+#include <sys/types.h>
+
 using namespace cv;
 using namespace std;
 
@@ -31,7 +34,8 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, int &maxDist, int &minDist,
-        IOType &iotype)
+        IOType &iotype, unsigned int &cluster_count,
+        unsigned int &attempts)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -54,6 +58,14 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "neglegt all data points with a distance smaller than <arg> 'units")
         ("scanserver,S", po::value<bool>(&scanserver)->default_value(false),
          "Use the scanserver as an input method and handling of scan data");
+
+    po::options_description cluster("Cluster options");
+    cluster.add_options()
+        ("count,c", po::value<unsigned int>(&cluster_count)->default_value(2),
+         "the number of clusters to split the scan by")
+        ("attempts,a", po::value<unsigned int>(&attempts)->default_value(5),
+         "how many times the algorithm is executed using different initial "
+         "labelings");
 
     po::options_description hidden("Hidden options");
     hidden.add_options()
@@ -87,6 +99,9 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
+/*
+ * convert a scan to a matrix
+ */
 void convertToMat(Scan* scan, cv::Mat& scan_cv)
 {
   DataXYZ xyz = scan->get("xyz");
@@ -101,6 +116,70 @@ void convertToMat(Scan* scan, cv::Mat& scan_cv)
   }
 }
 
+/*
+ * create a directory
+ */
+void createdirectory(string segdir)
+{
+    int success = mkdir(segdir.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+
+    if (success == 0 || errno == EEXIST) {
+        cout << "Writing segmentations to " << segdir << endl;
+    } else {
+        cerr << "Creating directory " << segdir << " failed" << endl;
+        exit(1);
+    }
+}
+/*
+ * given a sample and label matrix, write them to uos files
+ */
+void write3dfiles(Mat &samples, Mat &labels, unsigned int cluster_count, unsigned int nPoints, string &dir)
+{
+    vector<ofstream*> outfiles(cluster_count);
+    for (unsigned int i = 0; i < cluster_count; i++) {
+        std::stringstream outfilename;
+        outfilename << dir << "/scan" << std::setw(3) << std::setfill('0') << i << ".3d";
+        outfiles[i] = new ofstream(outfilename.str());
+    }
+
+    for (unsigned int i = 0; i < nPoints; ++i) {
+        int cluster_idx = labels.at<int>(i, 0); // labels is 1 x nPoints
+        cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);
+        (*(outfiles[cluster_idx])) << entry(0) << " " << entry(1) << " " << entry(2) << endl;
+    }
+
+    for (unsigned i = 0; i < cluster_count; i++) {
+        outfiles[i]->close();
+    }
+}
+
+// write .pose files
+// .frames files can later be generated from them using ./bin/pose2frames
+void writeposefiles(int num, string &dir, const double* rPos, const double* rPosTheta)
+{
+    for (int i = 0; i < num; i++) {
+        std::stringstream posefilename;
+        posefilename << dir << "/scan" << std::setw(3) << std::setfill('0') << i << ".pose";
+        ofstream posefile(posefilename.str());
+        posefile << rPos[0] << " " << rPos[1] << " " << rPos[2] << endl;
+        posefile << deg(rPosTheta[0]) << " " << deg(rPosTheta[1]) << " " << deg(rPosTheta[2]) << endl;
+        posefile.close();
+    }
+}
+
+/*
+ * print the found cluster centers
+ */
+void printcenters(Mat &centers, unsigned int cluster_count)
+{
+    cout << "Found centers:" << endl;
+    for (unsigned int i = 0; i < cluster_count; i++) {
+        cout << "\tcenter #" << i << ": ("
+            << centers.at<float>(i,0) << " " << centers.at<float>(i, 1)
+            << " " << centers.at<float>(i, 2) << ")" << endl;
+    }
+}
+
 int main(int argc, char **argv)
 {
     int start, end;
@@ -108,9 +187,10 @@ int main(int argc, char **argv)
     int maxDist, minDist;
     string dir;
     IOType iotype;
+    unsigned int cluster_count, attempts;
 
     parse_options(argc, argv, start, end, scanserver, dir, maxDist, minDist,
-            iotype);
+            iotype, cluster_count, attempts);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -119,54 +199,24 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
+    Mat samples, labels, centers;
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
         Scan* scan = *it;
         scan->setRangeFilter(maxDist, minDist);
 
-        unsigned int nPoints = scan->size<DataXYZ>("xyz");
+        string mirrordir = dir + "mirrors" + scan->getIdentifier();
+        createdirectory(mirrordir);
 
-        Mat samples;
-        convertToMat(scan, samples); //samples is 1 x nPoints
+        convertToMat(scan, samples);
 
-        int cluster_count = 2;
-        Mat labels;
-        int attempts = 5;
-        Mat centers;
-        kmeans(samples, cluster_count, labels, TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001), attempts, KMEANS_PP_CENTERS, centers );
+        kmeans(samples, cluster_count, labels,
+                TermCriteria(CV_TERMCRIT_ITER|CV_TERMCRIT_EPS, 10000, 0.0001),
+                attempts, KMEANS_PP_CENTERS, centers);
 
-        cout << "Samples size: " << samples.size().width << " x " << samples.size().height << endl;
-        cout << "Centers size: " << centers.size().width << " x " << centers.size().height << endl;
-        cout << "Labels size: " << labels.size().width << " x " << labels.size().height << endl;
+        printcenters(centers, cluster_count);
 
-        ofstream cluster1, cluster2;
-        cluster1.open( (dir + "scan100.3d").c_str() );
-        cluster2.open( (dir + "scan101.3d").c_str() );
-        for (unsigned int i = 0; i < nPoints; ++i) {
-          int cluster_idx = labels.at<int>(i, 0); // labels is 1 x nPoints
-          switch (cluster_idx) {
-            case 0:
-              {
-                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);
-                for (int j = 0; j < 3; ++j) {
-                  cluster1 << entry(j) << " ";
-                }
-                cluster1 << endl;
-              }
-              break;
-            case 1:
-              {
-                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);
-                for (int j = 0; j < 3; ++j) {
-                  cluster2 << entry(j) << " ";
-                }
-                cluster2 << endl;
-              }
-              break;
-            default:
-              break;
-          }
-        }
-        cluster1.close();
-        cluster2.close();
+        write3dfiles(samples, labels, cluster_count, scan->size<DataXYZ>("xyz"), mirrordir);
+
+        writeposefiles(cluster_count, mirrordir, scan->get_rPos(), scan->get_rPosTheta());
      }
 }
