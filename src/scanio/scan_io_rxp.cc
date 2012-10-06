@@ -226,10 +226,14 @@ void importer::on_echo_transformed(echo_type echo)
   for (unsigned int i = 0; i < 3; ++i) cartesian[i] = point[i];
   toPolar(cartesian, polar);
   double range = polar[2];
+  double theta = polar[0];
+  double phi = polar[1];
 
   if(filter->check(point)) {
     if(xyz) {
-      if (range < 170.0 && t.reflectance < -12.0 && t.reflectance > -21.0) {
+      if (range < 170.0 && range > 140.0
+              && theta > 2.3
+              && t.reflectance < -12.0 && t.reflectance > -21.0) {
         for(unsigned int i = 0; i < 3; ++i) {
           xyz->push_back(point[i]);
           //cout << point[i] << " ";
