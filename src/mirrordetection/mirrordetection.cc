@@ -87,37 +87,17 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void convertToMat(Scan* scan, cv::Mat& scan_cv) 
+void convertToMat(Scan* scan, cv::Mat& scan_cv)
 {
   DataXYZ xyz = scan->get("xyz");
-  DataReflectance xyz_reflectance = scan->get("reflectance");
   unsigned int nPoints = xyz.size();
   scan_cv.create(nPoints,1,CV_32FC(3));
-  scan_cv = cv::Scalar::all(0); 
-  double zMax = numeric_limits<double>::min(); 
-  double zMin = numeric_limits<double>::max();
+  scan_cv = cv::Scalar::all(0);
   cv::MatIterator_<cv::Vec3f> it = scan_cv.begin<cv::Vec3f>();
-  for(unsigned int i = 0; i < nPoints; i++) {
-    float x, y, z, reflectance;
-    x = xyz[i][0];
-    y = xyz[i][1];
-    z = xyz[i][2];
-    reflectance = xyz_reflectance[i];
-    //normalize the reflectance                                     
-    reflectance += 32;
-    reflectance /= 64;
-    reflectance -= 0.2;
-    reflectance /= 0.3;
-    if (reflectance < 0) reflectance = 0;
-    if (reflectance > 1) reflectance = 1;
-    (*it)[0] = x;
-    (*it)[1] = y;
-    (*it)[2] = z;
-    //(*it)[3] = reflectance;
-    //finding min and max of z                                      
-    if (z > zMax) zMax = z;
-    if (z < zMin) zMin = z;
-    ++it;
+  for(unsigned int i = 0; i < nPoints; i++, ++it) {
+    (*it)[0] = xyz[i][0];
+    (*it)[1] = xyz[i][1];
+    (*it)[2] = xyz[i][2];
   }
 }
 
@@ -143,8 +123,10 @@ int main(int argc, char **argv)
         Scan* scan = *it;
         scan->setRangeFilter(maxDist, minDist);
 
+        unsigned int nPoints = scan->size<DataXYZ>("xyz");
+
         Mat samples;
-        convertToMat(scan, samples); //samples is 1 x number_of_points
+        convertToMat(scan, samples); //samples is 1 x nPoints
 
         int cluster_count = 2;
         Mat labels;
@@ -156,27 +138,27 @@ int main(int argc, char **argv)
         cout << "Centers size: " << centers.size().width << " x " << centers.size().height << endl;
         cout << "Labels size: " << labels.size().width << " x " << labels.size().height << endl;
 
-        ofstream cluster1, cluster2; 
+        ofstream cluster1, cluster2;
         cluster1.open( (dir + "scan100.3d").c_str() );
         cluster2.open( (dir + "scan101.3d").c_str() );
-        for (int i = 0; i < samples.rows; ++i) {
-          int cluster_idx = labels.at<int>(i, 0); // labels is 1 x number_of_points
+        for (unsigned int i = 0; i < nPoints; ++i) {
+          int cluster_idx = labels.at<int>(i, 0); // labels is 1 x nPoints
           switch (cluster_idx) {
-            case 0: 
-              {         
-                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);   
-                for (int j = 0; j < 3; ++j) {          
+            case 0:
+              {
+                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);
+                for (int j = 0; j < 3; ++j) {
                   cluster1 << entry(j) << " ";
-                }                          
+                }
                 cluster1 << endl;
               }
               break;
             case 1:
-              {         
-                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);   
-                for (int j = 0; j < 3; ++j) {          
+              {
+                cv::Vec3f entry = samples.at<cv::Vec3f>(i, 0);
+                for (int j = 0; j < 3; ++j) {
                   cluster2 << entry(j) << " ";
-                }                          
+                }
                 cluster2 << endl;
               }
               break;
