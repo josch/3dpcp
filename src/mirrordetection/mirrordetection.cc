@@ -73,7 +73,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
 
     // all options
     po::options_description all;
-    all.add(generic).add(input).add(hidden);
+    all.add(generic).add(input).add(cluster).add(hidden);
 
     // options visible with --help
     po::options_description cmdline_options;
