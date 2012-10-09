@@ -33,7 +33,7 @@ IF(WITH_SEGMENTATION)
   )
 
 
-  set(SEG_LIBS dl scanlib newmat ANN sparse scanclient scanio pthread rt)
+  set(SEG_LIBS dl scan newmat ANN sparse scanclient scanio pthread rt)
   
   add_executable(fh_segmentation ${FH_SEGMENTATION_SOURCES})
   target_link_libraries(fh_segmentation ${SEG_LIBS}) 

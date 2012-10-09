@@ -2,9 +2,11 @@
 #include <vector>
 #include <map>
 #include <unistd.h>
+
 using namespace std;
 
 #include "slam6d/globals.icc"
+#include "scanio/scan_io.h"
 
 #include "segmentation/Options.h"
 #include "segmentation/segment-image.h"
@@ -55,7 +57,10 @@ int main(int argc, char* argv[])
 	if ( options.reserve > 0 )
 		points.reserve(options.reserve);
 	double euler[] = {0,0,0,0,0,0};
-	ScanIO* scan;
+/*
+  Replace by openDirectory
+	
+  ScanIO* scan;
 	switch ( options.type )
 	{
 		case RXP:
@@ -75,9 +80,10 @@ int main(int argc, char* argv[])
 	);
 	delete scan;
 	delete t;
+*/
 	cerr << "Loaded " << points.size() << " points" << endl;
 
-	t = new Timer("Creating graph... # ms");
+	Timer *t = new Timer("Creating graph... # ms");
 	FHGraph g(points, weight2, options.sigma, options.eps, options.neighbors, options.radius);
 	delete t;
 
@@ -153,7 +159,7 @@ int main(int argc, char* argv[])
 		#pragma omp parallel for schedule(dynamic)
 		for (int i=0; i<nr; ++i)
 		{
-			ScanIO_xyzr::writeScan(options.outdir, i, * (clouds[i]));
+			// ScanIO_uosr::writeScan(options.outdir, i, * (clouds[i]));
 		}
 		delete t;
 	}

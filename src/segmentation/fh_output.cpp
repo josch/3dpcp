@@ -11,14 +11,9 @@
 #include <vector>
 using namespace std;
 
-#include "scanio/scan_io_uosr.h"
-#include "scanio/scan_io_rxp.h"
-#include "scanio/scan_io_velodyne.h"
-#include "scanio/scan_io.h"
-
-#include "slam6d/scan.h"
+#include "slam6d/globals.icc"
 #include "slam6d/io_utils.h"
-#include "slam6d/io_types.h"
+#include "slam6d/scan.h"
 
 #include "segmentation/segment-image.h"
 #include "segmentation/SRI.h"
@@ -33,7 +28,7 @@ template<typename T> T parse(string X)
 }
 
 int main(int argc, char** argv) {
-	reader_type type;
+	IOType type = RXP;
 	int start = 0;
 	int end = -1;
 	int height = -1;
@@ -43,26 +38,32 @@ int main(int argc, char** argv) {
 	int point_size = 1;
 	int reserve = -1;
 	int reserve2 = -1;
-    bool oneColor = false;
+  bool oneColor = false;
+  bool scanserver = false;
+  string dir;
 
+  WriteOnce<IOType> w_type(type);
+  WriteOnce<int> w_start(start), w_end(end);
 
-    const char* options = "f:s:e:h:w:o:rp:R:T:1";
+  const char* options = "f:s:e:h:w:o:rp:R:T:1";
 	char c;
 	while ( (c=getopt(argc, argv, options)) != -1 )
 	{
 		switch ( c )
 		{
-			case 'f':
-				if ( ! Scan::toType(optarg, type) )
-				{
-					cerr << "Invalid type " << optarg << endl;
-				}
-				break;
+			 case 'f': 
+        try {
+          w_type = formatname_to_io_type(optarg);
+        } catch (...) { // runtime_error
+          cerr << "Format " << optarg << " unknown." << endl;
+          abort();
+        }
+        break;
 			case 's':
-				start = parse<int>(optarg);
+				w_start = parse<int>(optarg);
 				break;
 			case 'e':
-				end = parse<int>(optarg);
+				w_end = parse<int>(optarg);
 				break;
 			case 'h':
 				height = parse<int>(optarg);
@@ -85,15 +86,43 @@ int main(int argc, char** argv) {
 			case 'T':
 				reserve2 = parse<int>(optarg);
 				break;
-            case '1':
-                oneColor = true;
-                break;
+      case '1':
+        oneColor = true;
+        break;
 		}
 	}
+
+  if (optind != argc-1) {
+    cerr << "\n*** Directory missing ***" << endl;
+    exit(1);
+  }
+  dir = argv[optind];
+
+#ifndef _MSC_VER
+  if (dir[dir.length()-1] != '/') dir = dir + "/";
+#else
+  if (dir[dir.length()-1] != '\\') dir = dir + "\\";
+#endif
+  if(start > end) {
+    cerr << "\n*** scan start number has to be smaller than scan end number ***" << endl;
+    exit(1);
+  } 
+
+  parseFormatFile(dir, w_type, w_start, w_end);
 
 	SRI sri(width, height, point_size);
 	if ( reserve>0 )
 		sri.reserve(reserve);
+
+  Scan::openDirectory(scanserver, dir, type, start, end);
+
+  if (Scan::allScans.size() == 0) {
+    cerr << "No scans found. Did you use the correct format?" << endl;
+    exit(-1);
+  }
+
+/*
+  Replace with openDirectory
 
 	for (; optind < argc; ++optind )
 	{
@@ -101,7 +130,6 @@ int main(int argc, char** argv) {
 		cerr << file << endl;
 		if ( file[file.length()-1]!= '/' )
 			file += '/';
-
 		Scan s;
 		s.readScans(type, start, end, file, -1, -1, false, reserve2);
 		cerr << s.allScans.size() << endl;
@@ -120,6 +148,7 @@ int main(int argc, char** argv) {
 			s.allScans[i]->clearPoints();
 		}
 	}
+*/
 	savePPM(sri.getImage(true, with_reflectance), output.c_str());
 
 	cout << "DONE!" << endl;

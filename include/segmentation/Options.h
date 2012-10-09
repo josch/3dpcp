@@ -4,13 +4,15 @@
 #include <string>
 
 #include "slam6d/scan.h"
+#include "slam6d/globals.icc"
+#include "slam6d/io_utils.h"
 
 struct Options
 {
 	Options(int argc, char* argv[]);
 	void usage();
 
-	reader_type type;
+	IOType type;
 	float minDist;
 	float maxDist;
 	int start;

@@ -39,11 +39,13 @@ Options::Options(int argc, char* argv[])
 		switch ( c )
 		{
 			case 'f':
-				if ( ! Scan::toType(optarg, type) )
-				{
-					cerr << "Invalid type " << optarg << endl;
-				}
-				break;
+				try {
+          type = formatname_to_io_type(optarg);
+        } catch (...) { // runtime_error
+          cerr << "Format " << optarg << " unknown." << endl;
+          abort();
+        }
+        break;
 			case 'm':
 				minDist = parse<float>(optarg);
 				break;
