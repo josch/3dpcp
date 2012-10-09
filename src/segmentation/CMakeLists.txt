@@ -32,16 +32,18 @@ IF(WITH_SEGMENTATION)
 	  convolve.cpp
   )
 
-  add_executable(fh_segmentation ${FH_SEGMENTATION_SOURCES})
 
-  target_link_libraries(fh_segmentation dl scanlib newmat ANN sparse scan_io_rxp scan_io_uosr scan_io_velodyne)
+  set(SEG_LIBS dl scanlib newmat ANN sparse scanclient scanio pthread rt)
+  
+  add_executable(fh_segmentation ${FH_SEGMENTATION_SOURCES})
+  target_link_libraries(fh_segmentation ${SEG_LIBS}) 
   
   add_executable(fh_output ${FH_OUTPUT_SOURCES})
-  target_link_libraries(fh_output dl scanlib newmat sparse ANN scan_io_rxp scan_io_uosr scan_io_velodyne)
+  target_link_libraries(fh_output ${SEG_LIBS}) 
 
   enable_testing()
   add_executable(test_fhgraph FHGraph.cpp Timer.cpp test_fhgraph.cpp)
-  target_link_libraries(test_fhgraph ANN dl)
+  target_link_libraries(test_fhgraph ${SEG_LIBS})
    
   add_test(FHGraph ${CMAKE_BINARY_DIR}/bin/test_fhgraph)
 
