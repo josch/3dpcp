@@ -1,4 +1,4 @@
-#include "segment/filter.h"
+#include "segmentation/filter.h"
 
 void normalize(std::vector<float> &mask) {
   int len = mask.size();

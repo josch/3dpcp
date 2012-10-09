@@ -1,4 +1,4 @@
-#include "segment/convolve.h"
+#include "segmentation/convolve.h"
 
 void convolve_even(image<float> *src, image<float> *dst,
                    std::vector<float> &mask) {

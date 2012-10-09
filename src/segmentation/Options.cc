@@ -1,4 +1,4 @@
-#include "segment/Options.h"
+#include "segmentation/Options.h"
 
 #include <getopt.h>
 #include <iostream>

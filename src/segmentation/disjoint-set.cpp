@@ -1,4 +1,4 @@
-#include "segment/disjoint-set.h"
+#include "segmentation/disjoint-set.h"
 
 universe::universe(int elements) {
     elts = new uni_elt[elements];

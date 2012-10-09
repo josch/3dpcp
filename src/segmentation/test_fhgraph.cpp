@@ -1,4 +1,4 @@
-#include <segment/FHGraph.h>
+#include <segmentation/FHGraph.h>
 #include <vector>
 #include <iostream>
 #include <cassert>

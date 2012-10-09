@@ -1,4 +1,4 @@
-#include "segment/segment-image.h"
+#include "segmentation/segment-image.h"
 
 rgb random_rgb() {
     rgb c;

@@ -17,9 +17,9 @@ using namespace std;
 #include "slam6d/scan_io.h"
 #include "slam6d/scan.h"
 
-#include "segment/segment-image.h"
-#include "segment/SRI.h"
-#include "segment/pnmfile.h"
+#include "segmentation/segment-image.h"
+#include "segmentation/SRI.h"
+#include "segmentation/pnmfile.h"
 
 template<typename T> T parse(string X)
 {

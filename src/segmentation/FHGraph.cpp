@@ -1,6 +1,6 @@
-#include "segment/FHGraph.h"
+#include "segmentation/FHGraph.h"
 #include <map>
-#include "segment/Timer.h"
+#include "segmentation/Timer.h"
 #include <omp.h>
 #include <algorithm>
 using namespace std;

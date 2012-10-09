@@ -18,10 +18,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
 
 #include <cstdio>
 #include <cstdlib>
-#include "segment/image.h"
-#include "segment/misc.h"
-#include "segment/pnmfile.h"
-#include "segment/segment-image.h"
+#include "segmentation/image.h"
+#include "segmentation/misc.h"
+#include "segmentation/pnmfile.h"
+#include "segmentation/segment-image.h"
 
 int main(int argc, char **argv) {
     if (argc != 6) {

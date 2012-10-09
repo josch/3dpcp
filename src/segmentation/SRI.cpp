@@ -1,4 +1,4 @@
-#include "segment/SRI.h"
+#include "segmentation/SRI.h"
 #include <iostream>
 #include <complex>
 
