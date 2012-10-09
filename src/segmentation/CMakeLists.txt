@@ -33,14 +33,15 @@ IF(WITH_SEGMENTATION)
   )
 
   add_executable(fh_segmentation ${FH_SEGMENTATION_SOURCES})
-  target_link_libraries(fh_segmentation dl scanlib_s newmat_s ANN_s sparse_s scan_io_rxp scan_io_xyzr scan_io_velodyne)
 
+  target_link_libraries(fh_segmentation dl scanlib newmat ANN sparse scan_io_rxp scan_io_uosr scan_io_velodyne)
+  
   add_executable(fh_output ${FH_OUTPUT_SOURCES})
-  target_link_libraries(fh_output dl scanlib_s newmat_s sparse_s ANN_s scan_io_rxp scan_io_xyzr scan_io_velodyne)
+  target_link_libraries(fh_output dl scanlib newmat sparse ANN scan_io_rxp scan_io_uosr scan_io_velodyne)
 
   enable_testing()
   add_executable(test_fhgraph FHGraph.cpp Timer.cpp test_fhgraph.cpp)
-  target_link_libraries(test_fhgraph ANN_s dl)
+  target_link_libraries(test_fhgraph ANN dl)
    
   add_test(FHGraph ${CMAKE_BINARY_DIR}/bin/test_fhgraph)
 

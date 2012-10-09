@@ -11,11 +11,14 @@
 #include <vector>
 using namespace std;
 
-#include "slam6d/scan_io_xyzr.h"
-#include "slam6d/scan_io_rxp.h"
-#include "slam6d/scan_io_velodyne.h"
-#include "slam6d/scan_io.h"
+#include "scanio/scan_io_uosr.h"
+#include "scanio/scan_io_rxp.h"
+#include "scanio/scan_io_velodyne.h"
+#include "scanio/scan_io.h"
+
 #include "slam6d/scan.h"
+#include "slam6d/io_utils.h"
+#include "slam6d/io_types.h"
 
 #include "segmentation/segment-image.h"
 #include "segmentation/SRI.h"

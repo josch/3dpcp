@@ -4,18 +4,16 @@
 #include <unistd.h>
 using namespace std;
 
-#include "slam6d/scan_io_rxp.h"
-#include "slam6d/scan_io_xyzr.h"
+#include "slam6d/globals.icc"
+
 #include "segmentation/Options.h"
 #include "segmentation/segment-image.h"
 #include "segmentation/image.h"
 #include "segmentation/pnmfile.h"
 #include "segmentation/misc.h"
 #include "segmentation/FHGraph.h"
-#include <segmentation/SRI.h>
-#include "slam6d/globals.icc"
-#include <slam6d/scan_io_velodyne.h>
-#include <segmentation/Timer.h>
+#include "segmentation/SRI.h"
+#include "segmentation/Timer.h"
 
 struct mycomp
 {
