@@ -121,35 +121,40 @@ int main(int argc, char** argv) {
     exit(-1);
   }
 
-/*
-  Replace with openDirectory
+  for (std::vector<Scan*>::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
+    Scan* scan = *it;
+    DataXYZ xyz = scan->get("xyz");
+    DataReflectance xyz_reflectance = scan->get("reflectance");
+    unsigned int nPoints = xyz.size();
+    
+    rgb c;
+    if ( oneColor) 
+      c.r = 250, c.g = c.b = 255;
+    else
+      c = random_rgb();
 
-	for (; optind < argc; ++optind )
-	{
-		string file = argv[optind];
-		cerr << file << endl;
-		if ( file[file.length()-1]!= '/' )
-			file += '/';
-		Scan s;
-		s.readScans(type, start, end, file, -1, -1, false, reserve2);
-		cerr << s.allScans.size() << endl;
-		for (int i=s.allScans.size()-1; i>=0; --i) {
-			const vector<Point>* v = s.allScans[i]->get_points();
-			rgb c;
-			if ( oneColor )
-				c.r = 250, c.g = c.b = 255;
-			else
-				c = random_rgb();
-			for (size_t j=0; j<v->size(); ++j)
-			{
-				Point p = (*v)[j];
-				sri.addPoint(p.x, p.y, p.z, p.reflectance, c);
-			}
-			s.allScans[i]->clearPoints();
-		}
-	}
-*/
+    for(unsigned int i = 0; i < nPoints; i++) {
+      float x, y, z, reflectance;
+      x = xyz[i][0];
+      y = xyz[i][1];
+      z = xyz[i][2];
+      reflectance = xyz_reflectance[i];
+
+      //normalize the reflectance
+      reflectance += 32;
+      reflectance /= 64;
+      reflectance -= 0.2;
+      reflectance /= 0.3;
+      if (reflectance < 0) reflectance = 0;
+      if (reflectance > 1) reflectance = 1;
+
+      sri.addPoint(x, y, z, reflectance, c);
+    }
+  }
+
 	savePPM(sri.getImage(true, with_reflectance), output.c_str());
+
+  Scan::closeDirectory();
 
 	cout << "DONE!" << endl;
 	return 0;
