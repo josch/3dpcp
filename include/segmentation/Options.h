@@ -32,6 +32,8 @@ struct Options
 
 	int neighbors;
 	float radius;
+
+  bool scanserver;
 };
 
 #endif // __OPTIONS_H_

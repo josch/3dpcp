@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <vector>
 #include <map>
 #include <unistd.h>
@@ -41,6 +43,20 @@ bool compareSizes(vector<Point>* a, vector<Point>* b)
 	return a->size() > b->size();
 }
 
+void writeScan(const string& dir, 
+        unsigned int scan_number,
+        const vector<Point>& points) {
+
+  stringstream ss; 
+  ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".3d"; 
+  ofstream scan_file;
+  scan_file.open(ss.str().c_str());
+  for(size_t i = 0;  i < points.size(); ++i) {
+    scan_file << points[i].x << " " << points[i].y << " " << points[i].z << "\n";  
+  }
+  scan_file.close();
+}
+
 int main(int argc, char* argv[])
 {
 	Options options(argc, argv);
@@ -56,34 +72,47 @@ int main(int argc, char* argv[])
 	vector<Point> points;
 	if ( options.reserve > 0 )
 		points.reserve(options.reserve);
-	double euler[] = {0,0,0,0,0,0};
-/*
-  Replace by openDirectory
-	
-  ScanIO* scan;
-	switch ( options.type )
-	{
-		case RXP:
-			scan = new ScanIO_rxp();
-			break;
-		case VELODYNE:
-			scan = new ScanIO_velodyne();
-			break;
-		default:
-			cerr << "Type not supported (yet)!" << endl;
-			return 1;
-	}
 
-	Timer *t = new Timer("Reading points... # ms");
-	scan->readScans(options.start, options.end, options.dir,
-		options.maxDist, options.minDist, euler, points
-	);
-	delete scan;
-	delete t;
-*/
+	double euler[] = {0,0,0,0,0,0};
+  Timer *t = new Timer("Reading points... # ms");
+  Scan::openDirectory(options.scanserver, options.dir, options.type, options.start, options.end);
+
+  if (Scan::allScans.size() == 0) {
+    cerr << "No scans found. Did you use the correct format?" << endl;
+    exit(-1);
+  }
+
+  for (std::vector<Scan*>::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
+    Scan* scan = *it;
+    DataXYZ xyz = scan->get("xyz");
+    DataReflectance xyz_reflectance = scan->get("reflectance");
+    unsigned int nPoints = xyz.size();
+    
+    for(unsigned int i = 0; i < nPoints; i++) {
+      float x, y, z, reflectance;
+      x = xyz[i][0];
+      y = xyz[i][1];
+      z = xyz[i][2];
+      reflectance = xyz_reflectance[i];
+
+      //normalize the reflectance
+      reflectance += 32;
+      reflectance /= 64;
+      reflectance -= 0.2;
+      reflectance /= 0.3;
+      if (reflectance < 0) reflectance = 0;
+      if (reflectance > 1) reflectance = 1;
+
+      points.push_back(Point(x, y, z));
+    }
+  }
+  
+  delete t;
+  Scan::closeDirectory();
+
 	cerr << "Loaded " << points.size() << " points" << endl;
 
-	Timer *t = new Timer("Creating graph... # ms");
+	t = new Timer("Creating graph... # ms");
 	FHGraph g(points, weight2, options.sigma, options.eps, options.neighbors, options.radius);
 	delete t;
 
@@ -159,7 +188,7 @@ int main(int argc, char* argv[])
 		#pragma omp parallel for schedule(dynamic)
 		for (int i=0; i<nr; ++i)
 		{
-			// ScanIO_uosr::writeScan(options.outdir, i, * (clouds[i]));
+			writeScan(options.outdir, i, * (clouds[i]));
 		}
 		delete t;
 	}

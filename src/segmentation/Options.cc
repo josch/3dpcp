@@ -28,11 +28,12 @@ Options::Options(int argc, char* argv[])
 	do_out = false;
 	reserve = -1;
 	eps = 1.0;
+  scanserver = false;
 	
 	neighbors = -1;
 	radius = -1;
 
-	char* options = "hf:m:M:s:e:S:K:I:o:r:n:R:A:";
+	char* options = "hxf:m:M:s:e:S:K:I:o:r:n:R:A:";
 	char c;
 	while ( (c=getopt(argc, argv, options)) != -1 )
 	{
@@ -87,6 +88,9 @@ Options::Options(int argc, char* argv[])
 			case 'A':
 				eps = parse<float>(optarg);
 				break;
+      case 'x':
+        scanserver = true;
+        break;
 		}
 	}
 	
@@ -106,6 +110,7 @@ void Options::usage()
 	cerr << "Usage: ./bin/fh_segmentation [OPTIONS] SCAN\n"
 		 << "Available options:\n"
 		 << "-f TYPE   scan type; currently supported: rxp\n"
+     << "-x        enables scanserver\n"
 		 << "-m DIST   the minimum distance used by the reader\n"
 		 << "-M DIST   the maximum distance used by the reader\n"
 		 << "-s FRAME  the starting frame\n"

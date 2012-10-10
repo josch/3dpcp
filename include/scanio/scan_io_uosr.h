@@ -11,7 +11,6 @@
 #include "scan_io.h"
 
 
-
 /**
  * @brief IO of a 3D scan in uos file format plus a
  *        reflectance/intensity/temperature value

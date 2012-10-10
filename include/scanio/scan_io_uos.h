@@ -9,8 +9,6 @@
 
 #include "scan_io.h"
 
-
-
 /**
  * @brief 3D scan loader for UOS scans
  *

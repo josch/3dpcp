@@ -131,8 +131,6 @@ void ScanIO_uosr::readScan(const char* dir_path, const char* identifier, PointFi
   }
 }
 
-
-
 /**
  * class factory for object construction
  *

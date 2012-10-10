@@ -19,9 +19,13 @@
 #include "scanio/scan_io_uos.h"
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::string;
+using std::vector;
 #include <vector>
 
 #ifdef _MSC_VER
@@ -138,8 +142,6 @@ void ScanIO_uos::readScan(const char* dir_path, const char* identifier, PointFil
     data_file.close();
   }
 }
-
-
 
 /**
  * class factory for object construction
