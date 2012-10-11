@@ -55,6 +55,13 @@ void writeScan(const string& dir,
     scan_file << points[i].x << " " << points[i].y << " " << points[i].z << "\n";  
   }
   scan_file.close();
+
+  ss.clear(); ss.str(string());
+  ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".pose";
+  ofstream pose_file; 
+  pose_file.open(ss.str().c_str());
+  pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
+  pose_file.close();
 }
 
 int main(int argc, char* argv[])
@@ -66,7 +73,6 @@ int main(int argc, char* argv[])
 		options.usage();
 		return 1;
 	}
-
 
 	/* Read the points */
 	vector<Point> points;

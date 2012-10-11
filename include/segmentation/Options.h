@@ -7,6 +7,9 @@
 #include "slam6d/globals.icc"
 #include "slam6d/io_utils.h"
 
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/fstream.hpp>
+
 struct Options
 {
 	Options(int argc, char* argv[]);

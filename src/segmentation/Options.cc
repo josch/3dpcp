@@ -24,7 +24,7 @@ Options::Options(int argc, char* argv[])
 	sigma = 1;
 	k = 1;
 	min_size = 0;
-	outdir = "./";
+	outdir = "./segments/";
 	do_out = false;
 	reserve = -1;
 	eps = 1.0;
@@ -33,10 +33,8 @@ Options::Options(int argc, char* argv[])
 	neighbors = -1;
 	radius = -1;
 
-	char* options = "hxf:m:M:s:e:S:K:I:o:r:n:R:A:";
 	char c;
-	while ( (c=getopt(argc, argv, options)) != -1 )
-	{
+	while ( (c=getopt(argc, argv, "hxf:m:M:s:e:S:K:I:o:r:n:R:A:")) != -1 )
 		switch ( c )
 		{
 			case 'f':
@@ -91,9 +89,10 @@ Options::Options(int argc, char* argv[])
       case 'x':
         scanserver = true;
         break;
-		}
-	}
-	
+      default:
+	     abort ();
+	  }
+
 	if ( optind < argc )
 		dir = argv[optind];
 	else
@@ -103,11 +102,19 @@ Options::Options(int argc, char* argv[])
 	}
 	if ( dir[dir.length()-1] != '/' ) dir += "/";
 	if ( outdir[outdir.length()-1] != '/' ) outdir += "/";
+
+  boost::filesystem::path boost_dir(outdir);
+  if (!boost::filesystem::create_directory(boost_dir)) {
+    cerr << "Couldn't create directory " << outdir << endl;
+  }
+
+  cout << endl << "Input directory is: " << dir << endl;
+  cout << "Output directory is: " << outdir << endl;
 }
 
 void Options::usage()
 {
-	cerr << "Usage: ./bin/fh_segmentation [OPTIONS] SCAN\n"
+	cerr << "\n\nUsage: ./bin/fh_segmentation [OPTIONS] SCAN\n"
 		 << "Available options:\n"
 		 << "-f TYPE   scan type; currently supported: rxp\n"
      << "-x        enables scanserver\n"
@@ -124,5 +131,5 @@ void Options::usage()
 		 << "          returned by the radius search (it will pick NR points randomly)\n"
 		 << "-R SIZE   the size of pre-reserved std::vectors\n"
 		 << "-A EPS    the error used by the AKNN algorithm\n"
-		 << "-h        this help message\n";
+		 << "-h        this help message\n\n";
 }
