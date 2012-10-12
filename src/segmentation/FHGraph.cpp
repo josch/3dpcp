@@ -1,6 +1,5 @@
 #include "segmentation/FHGraph.h"
 #include <map>
-#include "segmentation/Timer.h"
 #include <omp.h>
 #include <algorithm>
 using namespace std;
@@ -19,31 +18,18 @@ FHGraph::FHGraph(std::vector< Point >& ps, double weight(Point, Point), double s
 	nr_neighbors = neighbors;
 	this->radius = radius;
 
-	Timer* t = new Timer("Computing graph neighbors... # ms");
 	compute_neighbors(weight, eps);
-	delete t;
-
 
 	if ( sigma > 0.01 )
-	{
-		t = new Timer("Applying Gaussian smoothing... # ms");
 		do_gauss(sigma);
-		delete t;
-	}
 	else
-	{
-		t = new Timer("Constructing graph, no smoothing... # ms");
 		without_gauss();
-		delete t;
-	}
 
 	adjency_list.clear();
 }
 
 void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 {
-	Timer *timer;
-
 	adjency_list.reserve(points.size());
 	adjency_list.resize(points.size());
 
@@ -56,9 +42,7 @@ void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 		pa[i][2] = points[i].z;
 	}
 
-	timer = new Timer("Creating ANNkd tree... # ms");
 	ANNkd_tree t(pa, points.size(), 3);
-	delete timer;
 
 	if ( radius < 0 ) // Using knn search
 	{
@@ -66,7 +50,6 @@ void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 		ANNidxArray n = new ANNidx[nr_neighbors];
 		ANNdistArray d = new ANNdist[nr_neighbors];
 
-		timer = new Timer("aknn search for all vertices... # ms");
 		for (size_t i=0; i<points.size(); ++i)
 		{
 			ANNpoint p = pa[i];
@@ -84,7 +67,6 @@ void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 				adjency_list[i].push_back(e);
 			}
 		}
-		delete timer;
 
 		delete[] n;
 		delete[] d;
@@ -92,8 +74,6 @@ void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 	else // Using radius search
 	{
 		float sqradius = radius*radius;
-
-		timer = new Timer("radius search for all vertices... # ms");
 
 		ANNidxArray n;
 		ANNdistArray d;
@@ -141,7 +121,6 @@ void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
 			TMP --;
 		}
 		cout << "Average nr of neighbors: " << (float) total / points.size() << endl;
-		delete timer;
 
 	}
 

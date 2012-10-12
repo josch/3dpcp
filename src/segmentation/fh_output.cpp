@@ -45,10 +45,8 @@ int main(int argc, char** argv) {
   WriteOnce<IOType> w_type(type);
   WriteOnce<int> w_start(start), w_end(end);
 
-  const char* options = "f:s:e:h:w:o:rp:R:T:1";
 	char c;
-	while ( (c=getopt(argc, argv, options)) != -1 )
-	{
+	while ( (c=getopt(argc, argv, "f:s:e:h:w:o:rp:R:T:1")) != -1 )
 		switch ( c )
 		{
 			 case 'f': 
@@ -89,8 +87,9 @@ int main(int argc, char** argv) {
       case '1':
         oneColor = true;
         break;
+      default:
+	     abort ();
 		}
-	}
 
   if (optind != argc-1) {
     cerr << "\n*** Directory missing ***" << endl;

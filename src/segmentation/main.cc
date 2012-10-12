@@ -16,8 +16,6 @@ using namespace std;
 #include "segmentation/pnmfile.h"
 #include "segmentation/misc.h"
 #include "segmentation/FHGraph.h"
-#include "segmentation/SRI.h"
-#include "segmentation/Timer.h"
 
 struct mycomp
 {
@@ -70,6 +68,7 @@ int main(int argc, char* argv[])
 
 	if ( options.neighbors<0 && options.radius<0 )
 	{
+    cerr << endl << "Underspecification! Nearest neighbors is: " << options.neighbors << " and search radius is: " << options.radius << endl;
 		options.usage();
 		return 1;
 	}
@@ -79,8 +78,6 @@ int main(int argc, char* argv[])
 	if ( options.reserve > 0 )
 		points.reserve(options.reserve);
 
-	double euler[] = {0,0,0,0,0,0};
-  Timer *t = new Timer("Reading points... # ms");
   Scan::openDirectory(options.scanserver, options.dir, options.type, options.start, options.end);
 
   if (Scan::allScans.size() == 0) {
@@ -112,22 +109,16 @@ int main(int argc, char* argv[])
       points.push_back(Point(x, y, z));
     }
   }
-  
-  delete t;
+
   Scan::closeDirectory();
 
-	cerr << "Loaded " << points.size() << " points" << endl;
+	cerr << endl << "Loaded " << points.size() << " points" << endl;
 
-	t = new Timer("Creating graph... # ms");
 	FHGraph g(points, weight2, options.sigma, options.eps, options.neighbors, options.radius);
-	delete t;
 
-	t = new Timer("Segmenting image... # ms");
 	edge* e = g.getGraph();
 	universe* segmented = segment_graph(g.getNumPoints(), g.getNumEdges(), e, options.k);
-	delete t;
 
-	t = new Timer("Post processing... # ms");
 	for (int i=0; i<g.getNumEdges(); ++i)
 	{
 		int a = e[i].a;
@@ -141,14 +132,11 @@ int main(int argc, char* argv[])
 			  segmented->size(bb) < options.min_size) )
 			segmented->join(aa, bb);
 	}
-	delete t;
-
 	delete[] e;
 
 	int nr = segmented->num_sets();
 	cerr << "Obtained " << nr << " segment(s)" << endl;
 
-	t = new Timer("Creating point clouds... # ms");
 	vector< vector<Point>* > clouds;
 	clouds.reserve(nr);
 	for (int i=0; i<nr; ++i)
@@ -165,38 +153,17 @@ int main(int argc, char* argv[])
 		}
 		clouds[c2c[comp]]->push_back(g[i]);
 	}
-	delete t;
-
 	g.dispose();
 
-	t = new Timer("Saving PPM image... # ms");
-	image<rgb> img(3600, 1800);
-	for (int i=0; i<nr; ++i)
-	{
-		rgb c = random_rgb();
-		vector<Point>* v = clouds[i];
-		for (size_t j=0; j<v->size(); ++j)
-		{
-			SRI::point p((*v)[j].x, (*v)[j].y, (*v)[j].z);
-			img.access[(int)p.y][(int)p.x] = c;
-		}
-	}
-	savePPM(&img, "output.ppm");
-	delete t;
-	
 	if (options.do_out)
 	{
-		t = new Timer("Sorting point clouds... # ms");
-		sort(clouds.begin(), clouds.end(), compareSizes);
-		delete t;
-		
-		t = new Timer("Dumping point clouds... # ms");
+	  sort(clouds.begin(), clouds.end(), compareSizes);
+
 		#pragma omp parallel for schedule(dynamic)
 		for (int i=0; i<nr; ++i)
 		{
 			writeScan(options.outdir, i, * (clouds[i]));
 		}
-		delete t;
 	}
 
 	return 0;
