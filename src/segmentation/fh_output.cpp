@@ -16,8 +16,9 @@ using namespace std;
 #include "slam6d/scan.h"
 
 #include "segmentation/segment-image.h"
-#include "segmentation/SRI.h"
 #include "segmentation/pnmfile.h"
+
+#include "scanserver/clientInterface.h"
 
 template<typename T> T parse(string X)
 {
@@ -46,7 +47,7 @@ int main(int argc, char** argv) {
   WriteOnce<int> w_start(start), w_end(end);
 
 	char c;
-	while ( (c=getopt(argc, argv, "f:s:e:h:w:o:rp:R:T:1")) != -1 )
+	while ( (c=getopt(argc, argv, "xf:s:e:h:w:o:rp:R:T:1")) != -1 )
 		switch ( c )
 		{
 			 case 'f': 
@@ -87,6 +88,9 @@ int main(int argc, char** argv) {
       case '1':
         oneColor = true;
         break;
+      case 'x':
+        scanserver = true;
+        break;
       default:
 	     abort ();
 		}
@@ -109,9 +113,15 @@ int main(int argc, char** argv) {
 
   parseFormatFile(dir, w_type, w_start, w_end);
 
-	SRI sri(width, height, point_size);
-	if ( reserve>0 )
-		sri.reserve(reserve);
+  if (scanserver) {
+    try {
+	    ClientInterface::create();
+    } catch(std::runtime_error& e) {
+      cerr << "ClientInterface could not be created: " << e.what() << endl;
+      cerr << "Start the scanserver first." << endl;
+      exit(-1);
+    }
+  }
 
   Scan::openDirectory(scanserver, dir, type, start, end);
 
@@ -146,14 +156,17 @@ int main(int argc, char** argv) {
       reflectance /= 0.3;
       if (reflectance < 0) reflectance = 0;
       if (reflectance > 1) reflectance = 1;
-
-      sri.addPoint(x, y, z, reflectance, c);
+    }
+    
+    if (scanserver) {
+      scan->clear(DATA_XYZ | DATA_REFLECTANCE);
     }
   }
 
-	savePPM(sri.getImage(true, with_reflectance), output.c_str());
-
-  Scan::closeDirectory();
+  if (scanserver) {  
+    Scan::closeDirectory();
+    ClientInterface::destroy();
+  }
 
 	cout << "DONE!" << endl;
 	return 0;

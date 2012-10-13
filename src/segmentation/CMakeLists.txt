@@ -10,9 +10,7 @@ IF(WITH_SEGMENTATION)
   set(FH_SEGMENTATION_SOURCES
 	  main.cc
 	  Options.cc
-	  SRI.cpp
 	  FHGraph.cpp
-	  Timer.cpp
 
 	  disjoint-set.cpp
 	  segment-graph.cpp
@@ -23,7 +21,6 @@ IF(WITH_SEGMENTATION)
 
   set(FH_OUTPUT_SOURCES
 	  fh_output.cpp
-	  SRI.cpp
 
 	  disjoint-set.cpp
 	  segment-graph.cpp
@@ -42,7 +39,7 @@ IF(WITH_SEGMENTATION)
   target_link_libraries(fh_output ${SEG_LIBS}) 
 
   enable_testing()
-  add_executable(test_fhgraph FHGraph.cpp Timer.cpp test_fhgraph.cpp)
+  add_executable(test_fhgraph FHGraph.cpp test_fhgraph.cpp)
   target_link_libraries(test_fhgraph ${SEG_LIBS})
    
   add_test(FHGraph ${CMAKE_BINARY_DIR}/bin/test_fhgraph)

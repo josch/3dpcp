@@ -17,6 +17,8 @@ using namespace std;
 #include "segmentation/misc.h"
 #include "segmentation/FHGraph.h"
 
+#include "scanserver/clientInterface.h"
+
 struct mycomp
 {
 	int rgb2int(rgb x) { return (x.r << 16) + (x.g << 8) + x.b; };
@@ -73,6 +75,16 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+  if (options.scanserver) {
+    try {
+	    ClientInterface::create();
+    } catch(std::runtime_error& e) {
+      cerr << "ClientInterface could not be created: " << e.what() << endl;
+      cerr << "Start the scanserver first." << endl;
+      exit(-1);
+    }
+  }
+
 	/* Read the points */
 	vector<Point> points;
 	if ( options.reserve > 0 )
@@ -108,9 +120,16 @@ int main(int argc, char* argv[])
 
       points.push_back(Point(x, y, z));
     }
+    
+    if (options.scanserver) {
+      scan->clear(DATA_XYZ | DATA_REFLECTANCE);
+    }
   }
 
-  Scan::closeDirectory();
+  if (options.scanserver) {  
+    Scan::closeDirectory();
+    ClientInterface::destroy();
+  }
 
 	cerr << endl << "Loaded " << points.size() << " points" << endl;
 
