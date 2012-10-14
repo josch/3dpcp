@@ -8,8 +8,7 @@ IF(WITH_SEGMENTATION)
 
   set(CXX_FLAGS "-O2")
   set(FH_SEGMENTATION_SOURCES
-	  main.cc
-	  Options.cc
+	  fh_segmentation.cc
 	  FHGraph.cpp
 
 	  disjoint-set.cpp
