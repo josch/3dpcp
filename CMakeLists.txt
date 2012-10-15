@@ -175,6 +175,17 @@ ELSE(WITH_SEGMENTATION)
   MESSAGE(STATUS "Without segmentation")
 ENDIF(WITH_SEGMENTATION)
 
+## Normals
+
+OPTION(WITH_NORMALS "Whether to build calculateNormals program ON/OFF" OFF)
+
+IF(WITH_NORMALS)
+  MESSAGE(STATUS "With normals")
+  find_package (Boost COMPONENTS program_options REQUIRED)
+ELSE(WITH_NORMALS)
+  MESSAGE(STATUS "Without normals")
+ENDIF(WITH_NORMALS)
+
 ## CAD matching
 OPTION (WITH_CAD "Wether to build with CAD import lib ON/OFF" OFF)
 
@@ -386,6 +397,7 @@ add_subdirectory(src/grid)
 add_subdirectory(src/pmd)
 add_subdirectory(src/shapes)
 add_subdirectory(src/thermo)
+add_subdirectory(src/normals)
 IF(WITH_FBR)
   add_subdirectory(src/slam6d/fbr)
 ENDIF(WITH_FBR)
