@@ -30,7 +30,7 @@ namespace po = boost::program_options;
  * validates input type specification
  */
 void validate(boost::any& v, const std::vector<std::string>& values,
-    IOType*, int) {
+        IOType*, int) {
     if (values.size() == 0)
         throw std::runtime_error("Invalid model specification");
     string arg = values.at(0);
@@ -73,7 +73,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "choose the method for computing normals from 0 to 4")
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
-;
+        ;
 
     po::options_description hidden("Hidden options");
     hidden.add_options()
@@ -94,7 +94,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     // process options
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv).
-              options(all).positional(pd).run(), vm);
+            options(all).positional(pd).run(), vm);
     po::notify(vm);
 
     // display help
@@ -108,70 +108,70 @@ void parse_options(int argc, char **argv, int &start, int &end,
 }
 
 /*
-void writeScan(const string& dir, 
-        unsigned int scan_number,
-        const vector<Point>& points) {
+   void writeScan(const string& dir, 
+   unsigned int scan_number,
+   const vector<Point>& points) {
 
-    stringstream ss; 
-    ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".3d"; 
-    ofstream scan_file;
-    scan_file.open(ss.str().c_str());
-    for(size_t i = 0;  i < points.size(); ++i) {
-        scan_file << points[i].x << " " << points[i].y << " " << points[i].z << "\n";  
-    }
-    scan_file.close();
+   stringstream ss; 
+   ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".3d"; 
+   ofstream scan_file;
+   scan_file.open(ss.str().c_str());
+   for(size_t i = 0;  i < points.size(); ++i) {
+   scan_file << points[i].x << " " << points[i].y << " " << points[i].z << "\n";  
+   }
+   scan_file.close();
 
-    ss.clear(); ss.str(string());
-    ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".pose";
-    ofstream pose_file; 
-    pose_file.open(ss.str().c_str());
-    pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
-    pose_file.close();
-}
-*/
+   ss.clear(); ss.str(string());
+   ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".pose";
+   ofstream pose_file; 
+   pose_file.open(ss.str().c_str());
+   pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
+   pose_file.close();
+   }
+   */
 
 void computeNeighbors(const vector<Point>& points, int knn, double eps) 
 {
-	ANNpointArray point_array = annAllocPts(points.size(), 3);
-	for (size_t i = 0; i < points.size(); ++i) {
-		point_array[i] = new ANNcoord[3];
-		point_array[i][0] = points[i].x;
-		point_array[i][1] = points[i].y;
-		point_array[i][2] = points[i].z;
-	}
-
-	ANNkd_tree t(point_array, points.size(), 3);
-	ANNidxArray n = new ANNidx[knn];
-	ANNdistArray d = new ANNdist[knn];
-
-	for (size_t i = 0; i < points.size(); ++i) {
-    vector<Point> neighbors;
-		ANNpoint p = point_array[i];
-
-		t.annkSearch(p, knn, n, d, eps);
-
-    neighbors.push_back(points[i]);
-		for (int j = 0; j < knn; ++j) {
-			if ( n[j] != (int)i )
-        neighbors.push_back(points[n[j]]);
-		}
-
-    Point centroid(0, 0, 0);
-    for(size_t j = 0; j < neighbors.size(); ++j) {
-      centroid.x += neighbors[j].x;
-      centroid.y += neighbors[j].y;
-      centroid.z += neighbors[j].z;
+    ANNpointArray point_array = annAllocPts(points.size(), 3);
+    for (size_t i = 0; i < points.size(); ++i) {
+        point_array[i] = new ANNcoord[3];
+        point_array[i][0] = points[i].x;
+        point_array[i][1] = points[i].y;
+        point_array[i][2] = points[i].z;
     }
-    centroid.x /= (double) neighbors.size();
-    centroid.y /= (double) neighbors.size();
-    centroid.z /= (double) neighbors.size();
 
-    
+    ANNkd_tree t(point_array, points.size(), 3);
+    ANNidxArray n = new ANNidx[knn];
+    ANNdistArray d = new ANNdist[knn];
 
-	}
+    for (size_t i = 0; i < points.size(); ++i) {
+        vector<Point> neighbors;
+        ANNpoint p = point_array[i];
 
-	delete[] n;
-	delete[] d;
+        t.annkSearch(p, knn, n, d, eps);
+
+        neighbors.push_back(points[i]);
+        for (int j = 0; j < knn; ++j) {
+            if ( n[j] != (int)i )
+                neighbors.push_back(points[n[j]]);
+        }
+
+        Point centroid(0, 0, 0);
+        for(size_t j = 0; j < neighbors.size(); ++j) {
+            centroid.x += neighbors[j].x;
+            centroid.y += neighbors[j].y;
+            centroid.z += neighbors[j].z;
+        }
+        centroid.x /= (double) neighbors.size();
+        centroid.y /= (double) neighbors.size();
+        centroid.z /= (double) neighbors.size();
+
+
+
+    }
+
+    delete[] n;
+    delete[] d;
 }
 
 int main(int argc, char **argv)
@@ -190,17 +190,17 @@ int main(int argc, char **argv)
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
     if(Scan::allScans.size() == 0) {
-      cerr << "No scans found. Did you use the correct format?" << endl;
-      exit(-1);
+        cerr << "No scans found. Did you use the correct format?" << endl;
+        exit(-1);
     }
 
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
-      Scan* scan = *it;
+        Scan* scan = *it;
 
-      // apply optional filtering
-      scan->setRangeFilter(maxDist, minDist);
-      
-      
+        // apply optional filtering
+        scan->setRangeFilter(maxDist, minDist);
+
+
     }
 
     Scan::closeDirectory();
