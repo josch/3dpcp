@@ -118,7 +118,7 @@ void mapNormalToRGB(const Point& normal, Point& rgb)
 {
     rgb.x = 127.5 * normal.x + 127.5;
     rgb.y = 127.5 * normal.y + 127.5;
-    rgb.z = 255.0 * normal.z;
+    rgb.z = 255.0 * fabs(normal.z);
 } 
 
 void writeNormals(const Scan* scan, const string& dir, 
@@ -126,19 +126,19 @@ void writeNormals(const Scan* scan, const string& dir,
 {
 
     stringstream ss; 
-    ss << dir << "scan" << scan->getIdentifier() << ".3d"; 
+    ss << dir << "scan" << string(scan->getIdentifier()) << ".3d"; 
     ofstream scan_file;
     scan_file.open(ss.str().c_str());
     for(size_t i = 0;  i < points.size(); ++i) {
         Point rgb;
         mapNormalToRGB(normals[i], rgb);
         scan_file << points[i].x << " " << points[i].y << " " << points[i].z << " "
-                    << rgb.x << " " << rgb.y << " " << rgb.z << "\n";  
+                    << (unsigned int) rgb.x << " " << (unsigned int) rgb.y << " " << (unsigned int) rgb.z << "\n";  
     }
     scan_file.close();
 
     ss.clear(); ss.str(string());
-    ss << dir << "scan" << scan->getIdentifier() << ".pose";
+    ss << dir << "scan" << string(scan->getIdentifier()) << ".pose";
     ofstream pose_file; 
     pose_file.open(ss.str().c_str());
     pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
@@ -204,13 +204,13 @@ void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Poin
         // normalize S
         for (int j = 0; j < 3; ++j) 
             for (int k = 0; k < 3; ++k)
-                S(j+1, k+1) /= neighbors.size() * 1.0;
+                S(j+1, k+1) /= (double) neighbors.size();
 
         SymmetricMatrix C;
         C << S;
         // compute eigendecomposition of C
-        Matrix			V(3,3); // for eigenvectors
-        DiagonalMatrix	D(3);   // for eigenvalues
+        Matrix V(3,3); // for eigenvectors
+        DiagonalMatrix D(3);   // for eigenvalues
         // the decomposition
         Jacobi(C, D, V);
 
@@ -227,7 +227,8 @@ void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Poin
         v1(3) = V(3,1);
         // consider first (smallest) eigenvector as the normal
         Real angle = (v1.t() * point_vector).AsScalar();
-        // flip orientation
+
+        // orient towards scan pose TODO: double check this
         if (angle < 0) {
             v1 *= -1.0;
         }
@@ -258,10 +259,8 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    boost::filesystem::path boost_dir(dir + "normals");
-    if (!boost::filesystem::create_directory(boost_dir)) {
-        cerr << "Couldn't create directory " << dir + "normals" << endl;
-    }
+    boost::filesystem::path boost_dir(dir + "normals/");
+    boost::filesystem::create_directory(boost_dir);
 
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
         vector<Point> points, normals;
@@ -292,7 +291,7 @@ int main(int argc, char **argv)
         }
 
         computeNeighbors(scan, points, normals, knn);
-        writeNormals(scan, dir + "normals", points, normals);
+        writeNormals(scan, dir + "normals/", points, normals);
     }
 
     Scan::closeDirectory();
