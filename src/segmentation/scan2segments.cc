@@ -24,12 +24,15 @@ namespace po = boost::program_options;
 
 #include "slam6d/fbr/panorama.h"
 
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgproc/imgproc_c.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
 
 enum image_type {M_RANGE, M_INTENSITY};
 
-enum segment_method {THRESHOLD, ADAPTIVE_THRESHOLD, PYR_MEAN_SHIFT, WATERSHED};
+enum segment_method {THRESHOLD, ADAPTIVE_THRESHOLD, PYR_MEAN_SHIFT, PYR_SEGMENTATION, WATERSHED};
 
 /* Function used to check that 'opt1' and 'opt2' are not specified
    at the same time. */
@@ -87,6 +90,7 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     if(strcasecmp(arg.c_str(), "THRESHOLD") == 0) v = THRESHOLD;
     else if(strcasecmp(arg.c_str(), "ADAPTIVE_THRESHOLD") == 0) v = ADAPTIVE_THRESHOLD;
     else if(strcasecmp(arg.c_str(), "PYR_MEAN_SHIFT") == 0) v = PYR_MEAN_SHIFT;
+    else if(strcasecmp(arg.c_str(), "PYR_SEGMENTATION") == 0) v = PYR_SEGMENTATION;
     else if(strcasecmp(arg.c_str(), "WATERSHED") == 0) v = WATERSHED;
     else throw std::runtime_error(std::string("segmentation method ") + arg + std::string(" is unknown"));
 }
@@ -169,7 +173,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     segment.add_options()
         ("segment,g", po::value<segment_method>(&stype)->
          default_value(PYR_MEAN_SHIFT), "segmentation method (THRESHOLD, "
-         "ADAPTIVE_THRESHOLD, PYR_MEAN_SHIFT, WATERSHED)")
+         "ADAPTIVE_THRESHOLD, PYR_MEAN_SHIFT, PYR_SEGMENTATION, WATERSHED)")
         ("marker,K", po::value<string>(&marker),
          "marker mask for watershed segmentation")
         ("thresh,T", po::value<double>(&thresh),
@@ -430,6 +434,47 @@ cv::Mat calculatePyrMeanShift(vector<vector<cv::Vec3f>> &segmented_points,
     return res;
 }
 
+///TODO: need to pass *two* thresh params, see: http://bit.ly/WmFeub
+cv::Mat calculatePyrSegmentation(vector<vector<cv::Vec3f>> &segmented_points,
+        cv::Mat &img, vector<vector<vector<cv::Vec3f> > > extendedMap,
+        double thresh1, double thresh2)
+{
+    ///TODO: level and block_sized seem to be pretty standard parameters, but can be specified via cmd line too.
+    int level = 4;
+    int block_size = 1000;
+    IplImage ipl_img = img;
+    IplImage* ipl_original = &ipl_img;
+    IplImage* ipl_segmented = 0;
+    
+    CvMemStorage* storage = cvCreateMemStorage(block_size);
+    CvSeq* comp = NULL;
+   
+    ///FIXME: I've adjusted this code according to the demo: http://bit.ly/QqZtQr
+    /// I don't know why the following two lines are required, probably something to do with resizing the image according to the number of levels
+    ipl_original->width &= -(1<<level);
+    ipl_original->height &= -(1<<level);
+
+    ipl_segmented = cvCloneImage( ipl_original );
+
+    // apply the pyramid segmentation algorithm
+    cvPyrSegmentation(ipl_original, ipl_segmented, storage, &comp, level, thresh1+1, thresh2+1); 
+
+    this->segments = comp->total;
+    for (unsigned int cur_seg = 0; cur_seg < this->segments; ++cur_seg) {
+      CvConnectedComp* cc = (CvConnectedComp*) cvGetSeqElem(comp, cur_seg);
+      cout << "Processing segment: " << cur_seg << endl;      
+      
+      ///TODO: FYI, here's documentation about CvConnectedComp: http://bit.ly/WyKfyg
+      
+    }
+
+    // clearing memory
+    cvReleaseMemStorage(&storage);
+
+    cv::Mat res(ipl_segmented);
+    return res;
+}
+
 /*
  * calculate the adaptive threshold
  */
@@ -623,6 +668,8 @@ int main(int argc, char **argv)
         } else if (stype == PYR_MEAN_SHIFT) {
             res = calculatePyrMeanShift(segmented_points, img, fPanorama.getExtendedMap(),
 								maxlevel, radius);
+        } else if (stype == PYR_SEGMENTATION) {
+            res = calculatePyrSegmentation(segmented_points, img, fPanorama.getExtendedMap(), thresh);
         } else if (stype == ADAPTIVE_THRESHOLD) {
             res = calculateAdaptiveThreshold(segmented_points, img, fPanorama.getExtendedMap());
         } else if (stype == WATERSHED) {
