@@ -1,12 +1,15 @@
 /*
  * calculateNormals implementation
  *
- * Copyright (C) Johannes Schauer, Razvan Mihai
+ * Copyright (C) Johannes Schauer, Razvan Mihaly
  *
  * Released under the GPL version 3
  *
  */
 
+#include "ANN/ANN.h"
+
+#include "slam6d/point.h"
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
 
@@ -16,6 +19,7 @@ using std::string;
 #include <iostream>
 using std::cout;
 using std::endl;
+using std::vector;
 
 #include <algorithm>
 
@@ -42,7 +46,7 @@ void validate(boost::any& v, const std::vector<std::string>& values,
  */
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
-        int &maxDist, int &minDist)
+        int &maxDist, int &minDist, int &normalMethod, int &knn)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -64,7 +68,12 @@ void parse_options(int argc, char **argv, int &start, int &end,
         ("min,m", po::value<int>(&minDist)->default_value(-1),
          "neglegt all data points with a distance smaller than <arg> 'units")
         ("scanserver,S", po::bool_switch(&scanserver),
-         "Use the scanserver as an input method and handling of scan data");
+         "Use the scanserver as an input method and handling of scan data")
+        ("normalMethod,N", po::value<int>(&normalMethod)->default_value(0),
+         "choose the method for computing normals from 0 to 4")
+        ("knn,K", po::value<int>(&knn)->default_value(1),
+         "select the k in kNN search")
+;
 
     po::options_description hidden("Hidden options");
     hidden.add_options()
@@ -98,6 +107,73 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
+/*
+void writeScan(const string& dir, 
+        unsigned int scan_number,
+        const vector<Point>& points) {
+
+    stringstream ss; 
+    ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".3d"; 
+    ofstream scan_file;
+    scan_file.open(ss.str().c_str());
+    for(size_t i = 0;  i < points.size(); ++i) {
+        scan_file << points[i].x << " " << points[i].y << " " << points[i].z << "\n";  
+    }
+    scan_file.close();
+
+    ss.clear(); ss.str(string());
+    ss << dir << "scan" << std::setw(3) << std::setfill('0') << scan_number << ".pose";
+    ofstream pose_file; 
+    pose_file.open(ss.str().c_str());
+    pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
+    pose_file.close();
+}
+*/
+
+void computeNeighbors(const vector<Point>& points, int knn, double eps) 
+{
+	ANNpointArray point_array = annAllocPts(points.size(), 3);
+	for (size_t i = 0; i < points.size(); ++i) {
+		point_array[i] = new ANNcoord[3];
+		point_array[i][0] = points[i].x;
+		point_array[i][1] = points[i].y;
+		point_array[i][2] = points[i].z;
+	}
+
+	ANNkd_tree t(point_array, points.size(), 3);
+	ANNidxArray n = new ANNidx[knn];
+	ANNdistArray d = new ANNdist[knn];
+
+	for (size_t i = 0; i < points.size(); ++i) {
+    vector<Point> neighbors;
+		ANNpoint p = point_array[i];
+
+		t.annkSearch(p, knn, n, d, eps);
+
+    neighbors.push_back(points[i]);
+		for (int j = 0; j < knn; ++j) {
+			if ( n[j] != (int)i )
+        neighbors.push_back(points[n[j]]);
+		}
+
+    Point centroid(0, 0, 0);
+    for(size_t j = 0; j < neighbors.size(); ++j) {
+      centroid.x += neighbors[j].x;
+      centroid.y += neighbors[j].y;
+      centroid.z += neighbors[j].z;
+    }
+    centroid.x /= (double) neighbors.size();
+    centroid.y /= (double) neighbors.size();
+    centroid.z /= (double) neighbors.size();
+
+    
+
+	}
+
+	delete[] n;
+	delete[] d;
+}
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -106,8 +182,10 @@ int main(int argc, char **argv)
     int maxDist, minDist;
     string dir;
     IOType iotype;
+    int normalMethod;
+    int knn;
 
-    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist);
+    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -117,9 +195,15 @@ int main(int argc, char **argv)
     }
 
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
-        Scan* scan = *it;
+      Scan* scan = *it;
 
-        // apply optional filtering
-        scan->setRangeFilter(maxDist, minDist);
+      // apply optional filtering
+      scan->setRangeFilter(maxDist, minDist);
+      
+      
     }
+
+    Scan::closeDirectory();
+
+    return 0;
 }
