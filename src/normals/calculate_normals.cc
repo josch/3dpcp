@@ -18,6 +18,7 @@ using namespace NEWMAT;
 #include "normals/pointNeighbor.h"
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
+#include "slam6d/fbr/panorama.h"
 
 #include <string>
 using std::string;
@@ -55,7 +56,7 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
         int &maxDist, int &minDist, int &normalMethod, int &knn,
-        int &kmin, int &kmax, double& alpha)
+        int &kmin, int &kmax, double& alpha, int &width, int &height)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -92,6 +93,10 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "select k_max in adaptive kNN search")
         ("alpha,a", po::value<double>(&alpha)->default_value(100.0),
          "select the alpha parameter for detecting an ill-conditioned neighborhood")
+        ("width,w", po::value<int>(&width)->default_value(1280),
+         "width of panorama")
+        ("height,h", po::value<int>(&height)->default_value(960),
+         "height of panorama")
         ;
 
     po::options_description hidden("Hidden options");
@@ -124,11 +129,13 @@ void parse_options(int argc, char **argv, int &start, int &end,
 
     switch (normalMethod) {
         case 0: {
+            cout << "Using kNN and PCA" << endl;
             if (!vm.count("knn"))
                 throw std::logic_error("this normal computation method requires --knn to be set");    
             break;
         }
         case 1: {
+            cout << "Using adaptive kNN and PCA" << endl;
             if (!vm.count("kmin"))
                 throw std::logic_error("this normal computation method requires --kmin to be set");
             if (!vm.count("kmax"))
@@ -137,6 +144,15 @@ void parse_options(int argc, char **argv, int &start, int &end,
                 throw std::logic_error("--kmax should be larger than --kmin");                      
             if (!vm.count("alpha"))
                 throw std::logic_error("this normal computation method requires --alpha to be set");     
+            break;
+        }
+        case 2: {
+            cout << "Using panorama image neighbors and PCA" << endl;
+            if (!vm.count("width"))
+                throw std::logic_error("this normal computation method requires --width to be set");
+            if (!vm.count("height"))
+                throw std::logic_error("this normal computation method requires --height to be set");  
+            break;
         }
         default:
             break;
@@ -320,6 +336,56 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Po
     }
 }
 
+void computePanoramaNeighbors(fbr::panorama& fPanorama) {
+    cv::Mat img = fPanorama.getReflectanceImage();
+    imwrite("test.jpg", img);
+    vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
+    for (int row = 0; row < img.rows; ++row) {
+        for (int col = 0; col < img.cols; ++col) {
+            vector<cv::Vec3f> points = extended_map[row][col];
+        }
+    }
+}
+
+/*
+ * retrieve a cv::Mat with x,y,z,r from a scan object
+ * functionality borrowed from scan_cv::convertScanToMat but this function
+ * does not allow a scanserver to be used, prints to stdout and can only
+ * handle a single scan
+ */
+void scan2mat(Scan* scan, cv::Mat& scan_cv) {
+  DataXYZ xyz = scan->get("xyz");
+  DataReflectance xyz_reflectance = scan->get("reflectance");
+  unsigned int nPoints = xyz.size();
+  scan_cv.create(nPoints,1,CV_32FC(4));
+  scan_cv = cv::Scalar::all(0); 
+  double zMax = numeric_limits<double>::min(); 
+  double zMin = numeric_limits<double>::max();
+  cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
+  for(unsigned int i = 0; i < nPoints; i++){
+    float x, y, z, reflectance;
+    x = xyz[i][0];
+    y = xyz[i][1];
+    z = xyz[i][2];
+    reflectance = xyz_reflectance[i];
+    //normalize the reflectance                                     
+    reflectance += 32;
+    reflectance /= 64;
+    reflectance -= 0.2;
+    reflectance /= 0.3;
+    if (reflectance < 0) reflectance = 0;
+    if (reflectance > 1) reflectance = 1;
+    (*it)[0] = x;
+    (*it)[1] = y;
+    (*it)[2] = z;
+    (*it)[3] = reflectance;
+    //finding min and max of z                                      
+    if (z > zMax) zMax = z;
+    if (z < zMin) zMin = z;
+    ++it;
+  }
+}
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -331,8 +397,9 @@ int main(int argc, char **argv)
     int normalMethod;
     int knn, kmin, kmax;
     double alpha;
+    int width, height;
 
-    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn, kmin, kmax, alpha);
+    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn, kmin, kmax, alpha, width, height);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -378,6 +445,7 @@ int main(int argc, char **argv)
                 vector<PointNeighbor> points_neighbors;
                 computeNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals);
+                writeNormals(scan, dir + "normals/", points, normals);  
                 break;
             }
             case 1:
@@ -385,12 +453,23 @@ int main(int argc, char **argv)
                 vector<PointNeighbor> points_neighbors;
                 computeNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals);
+                writeNormals(scan, dir + "normals/", points, normals);  
+                break;
+            }
+            case 2:
+            {
+                cv::Mat scan_cv;
+                scan2mat(scan, scan_cv);
+                fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
+                fPanorama.createPanorama(scan_cv);
+
+                computePanoramaNeighbors(fPanorama);
+
                 break;
             }
             default:
                 break;
         }
-        writeNormals(scan, dir + "normals/", points, normals);        
     }
 
     Scan::closeDirectory();
