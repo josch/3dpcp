@@ -54,7 +54,8 @@ void validate(boost::any& v, const std::vector<std::string>& values,
  */
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
-        int &maxDist, int &minDist, int &normalMethod, int &knn)
+        int &maxDist, int &minDist, int &normalMethod, int &knn,
+        int &kmin, int &kmax, double& alpha)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -85,6 +86,12 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "3 -- use spherical range image differentiation\n")        
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
+        ("kmin,1", po::value<int>(&kmin)->default_value(1),
+         "select k_min in adaptive kNN search")
+        ("kmax,2", po::value<int>(&kmax)->default_value(0),
+         "select k_max in adaptive kNN search")
+        ("alpha,a", po::value<double>(&alpha)->default_value(100.0),
+         "select the alpha parameter for detecting an ill-conditioned neighborhood")
         ;
 
     po::options_description hidden("Hidden options");
@@ -113,6 +120,26 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (vm.count("help")) {
         cout << cmdline_options;
         exit(0);
+    }
+
+    switch (normalMethod) {
+        case 0: {
+            if (!vm.count("knn"))
+                throw std::logic_error("this normal computation method requires --knn to be set");    
+            break;
+        }
+        case 1: {
+            if (!vm.count("kmin"))
+                throw std::logic_error("this normal computation method requires --kmin to be set");
+            if (!vm.count("kmax"))
+                throw std::logic_error("this normal computation method requires --kmax to be set");     
+            if (kmax < kmin) 
+                throw std::logic_error("--kmax should be larger than --kmin");                      
+            if (!vm.count("alpha"))
+                throw std::logic_error("this normal computation method requires --alpha to be set");     
+        }
+        default:
+            break;
     }
 
     // add trailing slash to directory if not present yet
@@ -150,8 +177,58 @@ void writeNormals(const Scan* scan, const string& dir,
     pose_file.close();
 }
 
-void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, double eps=1.0) 
+void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_values, Matrix& e_vectors) 
 {
+      Point centroid(0, 0, 0);
+      vector<Point> neighbors = point.neighbors;
+
+      for (size_t j = 0; j < neighbors.size(); ++j) {
+          centroid.x += neighbors[j].x;
+          centroid.y += neighbors[j].y;
+          centroid.z += neighbors[j].z;
+      }
+      centroid.x /= (double) neighbors.size();
+      centroid.y /= (double) neighbors.size();
+      centroid.z /= (double) neighbors.size();
+
+      Matrix S(3, 3);
+      S = 0.0;
+      for (size_t j = 0; j < neighbors.size(); ++j) {
+          ColumnVector point_prime(3);
+          point_prime(1) = neighbors[j].x - centroid.x;
+          point_prime(2) = neighbors[j].y - centroid.y;
+          point_prime(3) = neighbors[j].z - centroid.z;
+          S = S + point_prime * point_prime.t();
+      }
+      // normalize S
+      for (int j = 0; j < 3; ++j) 
+          for (int k = 0; k < 3; ++k)
+              S(j+1, k+1) /= (double) neighbors.size();
+
+      SymmetricMatrix C;
+      C << S;
+      // the decomposition
+      Jacobi(C, e_values, e_vectors);
+
+#ifdef DEBUG
+      // Print the result
+      cout << "The eigenvalues matrix:" << endl;
+      cout << e_values << endl;
+#endif
+}
+
+/**
+ * Computing Neighbors using kNN search
+ * @param points - input set of points
+ * @param points_neighbors - output set of points with corresponding neighbors
+ * @param knn - k constant in kNN search
+ * @param kmax - to be used in adaptive knn search as the upper bound on adapting the k constant, defaults to -1 for regular kNN search
+ * @param alpha - to be used in adaptive knn search for detecting ill-conditioned neighborhoods
+ * @param eps - parameter required by the ANN library in kNN search
+ */
+void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1, double alpha=1000.0, double eps=1.0) 
+{
+    cout << "Adapting knn between: " << knn << " and " << kmax << endl;
     ANNpointArray point_array = annAllocPts(points.size(), 3);
     for (size_t i = 0; i < points.size(); ++i) {
         point_array[i] = new ANNcoord[3];
@@ -161,10 +238,21 @@ void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points
     }
 
     ANNkd_tree t(point_array, points.size(), 3);
-    ANNidxArray n = new ANNidx[knn];
-    ANNdistArray d = new ANNdist[knn];
+    ANNidxArray n;
+    ANNdistArray d;
+
+    if (kmax < 0) {
+        /// regular kNN search, allocate memory for knn
+        n = new ANNidx[knn];
+        d = new ANNdist[knn];
+    } else {
+        /// adaptive kNN search, allocate memory for kmax
+        n = new ANNidx[kmax];
+        d = new ANNdist[kmax];
+    }
 
     for (size_t i = 0; i < points.size(); ++i) {
+        cout << "Using knn: " << knn << endl;
         vector<Point> neighbors;
         ANNpoint p = point_array[i];
 
@@ -176,7 +264,20 @@ void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points
                 neighbors.push_back(points[n[j]]);
         }
 
-        points_neighbors.push_back(PointNeighbor (points[i], neighbors) );
+        PointNeighbor current_point(points[i], neighbors); 
+        points_neighbors.push_back( current_point );
+        Matrix e_vectors(3,3); e_vectors = 0.0;
+        DiagonalMatrix e_values(3); e_values = 0.0;
+        computeEigenDecomposition( current_point, e_values, e_vectors );
+
+        /// detecting an ill-conditioned neighborhood
+        if (e_values(3) / e_values(2) > alpha && e_values(2) > 1e-5) {
+            cout << endl << e_values << endl;
+            if (knn < kmax) 
+                cout << "Increasing kmin to " << ++knn << endl;            
+            else 
+                cout << "Saturated kmin. Using " << knn << endl;
+        }       
     }
     
     delete[] n;
@@ -200,49 +301,14 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Po
         point_vector(3) = points[i].z - origin(3);
         point_vector = point_vector / point_vector.NormFrobenius();
 
-        Point centroid(0, 0, 0);
-        for (size_t j = 0; j < neighbors.size(); ++j) {
-            centroid.x += neighbors[j].x;
-            centroid.y += neighbors[j].y;
-            centroid.z += neighbors[j].z;
-        }
-        centroid.x /= (double) neighbors.size();
-        centroid.y /= (double) neighbors.size();
-        centroid.z /= (double) neighbors.size();
+        Matrix e_vectors(3,3); e_vectors = 0.0;
+        DiagonalMatrix e_values(3); e_values = 0.0;
+        computeEigenDecomposition(points[i], e_values, e_vectors);
 
-        Matrix S(3, 3);
-        S = 0.0;
-        for (size_t j = 0; j < neighbors.size(); ++j) {
-            ColumnVector point_prime(3);
-            point_prime(1) = neighbors[j].x - centroid.x;
-            point_prime(2) = neighbors[j].y - centroid.y;
-            point_prime(3) = neighbors[j].z - centroid.z;
-            S = S + point_prime * point_prime.t();
-        }
-        // normalize S
-        for (int j = 0; j < 3; ++j) 
-            for (int k = 0; k < 3; ++k)
-                S(j+1, k+1) /= (double) neighbors.size();
-
-        SymmetricMatrix C;
-        C << S;
-        // compute eigendecomposition of C
-        Matrix V(3,3); // for eigenvectors
-        DiagonalMatrix D(3);   // for eigenvalues
-        // the decomposition
-        Jacobi(C, D, V);
-
-#ifdef DEBUG       
-        // Print the result
-        cout << "The eigenvalues matrix:" << endl;
-        cout << D << endl;
-        cout << "The eigenvectors matrix:" << endl;
-        cout << V << endl << endl;
-#endif 
         ColumnVector v1(3);
-        v1(1) = V(1,1);
-        v1(2) = V(2,1);
-        v1(3) = V(3,1);
+        v1(1) = e_vectors(1,1);
+        v1(2) = e_vectors(2,1);
+        v1(3) = e_vectors(3,1);
         // consider first (smallest) eigenvector as the normal
         Real angle = (v1.t() * point_vector).AsScalar();
 
@@ -263,9 +329,10 @@ int main(int argc, char **argv)
     string dir;
     IOType iotype;
     int normalMethod;
-    int knn;
+    int knn, kmin, kmax;
+    double alpha;
 
-    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn);
+    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn, kmin, kmax, alpha);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -305,10 +372,25 @@ int main(int argc, char **argv)
             points.push_back(Point(x, y, z));
         }
 
-        vector<PointNeighbor> points_neighbors;
-        computeNeighbors(points, points_neighbors, knn);
-        computePCA(scan, points_neighbors, normals);
-        writeNormals(scan, dir + "normals/", points, normals);
+        switch (normalMethod) {
+            case 0: 
+            {
+                vector<PointNeighbor> points_neighbors;
+                computeNeighbors(points, points_neighbors, knn);
+                computePCA(scan, points_neighbors, normals);
+                break;
+            }
+            case 1:
+            {
+                vector<PointNeighbor> points_neighbors;
+                computeNeighbors(points, points_neighbors, kmin, kmax, alpha);
+                computePCA(scan, points_neighbors, normals);
+                break;
+            }
+            default:
+                break;
+        }
+        writeNormals(scan, dir + "normals/", points, normals);        
     }
 
     Scan::closeDirectory();
