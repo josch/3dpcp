@@ -15,6 +15,7 @@
 using namespace NEWMAT;
 
 #include "slam6d/point.h"
+#include "normals/pointNeighbor.h"
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
 
@@ -77,7 +78,11 @@ void parse_options(int argc, char **argv, int &start, int &end,
         ("scanserver,S", po::bool_switch(&scanserver),
          "Use the scanserver as an input method and handling of scan data")
         ("normalMethod,N", po::value<int>(&normalMethod)->default_value(0),
-         "choose the method for computing normals from 0 to 4")
+         "choose the method for computing normals:\n"
+         "0 -- use kNN and PCA\n"
+         "1 -- use adaptive kNN and PCA\n"
+         "2 -- use panorama image neighbors and PCA\n"
+         "3 -- use spherical range image differentiation\n")        
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
         ;
@@ -145,7 +150,7 @@ void writeNormals(const Scan* scan, const string& dir,
     pose_file.close();
 }
 
-void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Point>& normals, int knn, double eps=1.0) 
+void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, double eps=1.0) 
 {
     ANNpointArray point_array = annAllocPts(points.size(), 3);
     for (size_t i = 0; i < points.size(); ++i) {
@@ -159,18 +164,7 @@ void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Poin
     ANNidxArray n = new ANNidx[knn];
     ANNdistArray d = new ANNdist[knn];
 
-    ColumnVector origin(3);
-    const double *scan_pose = scan->get_rPos();
-    for (int i = 0; i < 3; ++i)
-        origin(i+1) = scan_pose[i];
-
     for (size_t i = 0; i < points.size(); ++i) {
-        ColumnVector point_vector(3);
-        point_vector(1) = points[i].x - origin(1);
-        point_vector(2) = points[i].y - origin(2);
-        point_vector(3) = points[i].z - origin(3);
-        point_vector = point_vector / point_vector.NormFrobenius();
-
         vector<Point> neighbors;
         ANNpoint p = point_array[i];
 
@@ -181,6 +175,30 @@ void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Poin
             if ( n[j] != (int)i )
                 neighbors.push_back(points[n[j]]);
         }
+
+        points_neighbors.push_back(PointNeighbor (points[i], neighbors) );
+    }
+    
+    delete[] n;
+    delete[] d;
+}
+    
+
+void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Point>& normals) 
+{
+    ColumnVector origin(3);
+    const double *scan_pose = scan->get_rPos();
+    for (int i = 0; i < 3; ++i)
+        origin(i+1) = scan_pose[i];
+
+    for(size_t i = 0; i < points.size(); ++i) {
+        vector<Point> neighbors = points[i].neighbors;
+
+        ColumnVector point_vector(3);
+        point_vector(1) = points[i].x - origin(1);
+        point_vector(2) = points[i].y - origin(2);
+        point_vector(3) = points[i].z - origin(3);
+        point_vector = point_vector / point_vector.NormFrobenius();
 
         Point centroid(0, 0, 0);
         for (size_t j = 0; j < neighbors.size(); ++j) {
@@ -230,13 +248,10 @@ void computeNeighbors(const Scan* scan, const vector<Point>& points, vector<Poin
 
         // orient towards scan pose TODO: double check this
         if (angle < 0) {
-            v1 *= -1.0;
+            //v1 *= -1.0;
         }
         normals.push_back( Point(v1(1), v1(2), v1(3)) );
     }
-
-    delete[] n;
-    delete[] d;
 }
 
 int main(int argc, char **argv)
@@ -290,7 +305,9 @@ int main(int argc, char **argv)
             points.push_back(Point(x, y, z));
         }
 
-        computeNeighbors(scan, points, normals, knn);
+        vector<PointNeighbor> points_neighbors;
+        computeNeighbors(points, points_neighbors, knn);
+        computePCA(scan, points_neighbors, normals);
         writeNormals(scan, dir + "normals/", points, normals);
     }
 
