@@ -255,7 +255,6 @@ void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_val
  */
 void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1, double alpha=1000.0, double eps=1.0) 
 {
-    cout << "Adapting knn between: " << knn << " and " << kmax << endl;
     ANNpointArray point_array = annAllocPts(points.size(), 3);
     for (size_t i = 0; i < points.size(); ++i) {
         point_array[i] = new ANNcoord[3];
@@ -296,12 +295,13 @@ void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>
         DiagonalMatrix e_values(3); e_values = 0.0;
         computeEigenDecomposition( current_point, e_values, e_vectors );
 
-        /// detecting an ill-conditioned neighborhood
-        if (e_values(3) / e_values(2) > alpha && e_values(2) > 1e-5) {
-            cout << endl << e_values << endl;
-            if (knn < kmax) 
-                cout << "Increasing kmin to " << ++knn << endl;            
-        }       
+        if (kmax > 0) {
+            /// detecting an ill-conditioned neighborhood
+            if (e_values(3) / e_values(2) > alpha && e_values(2) > 0.0) {
+                if (knn < kmax) 
+                    cout << "Increasing kmin to " << ++knn << endl;            
+            }       
+        }
     }
     
     delete[] n;
@@ -322,15 +322,15 @@ void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& p
         for (int col = 0; col < img.cols; ++col) {
             vector<cv::Vec3f> points_panorama = extended_map[row][col];
             /// if no points found, skip pixel
-            if (points_panorama.size() < 1e-5) continue;
+            if (points_panorama.size() < 1) continue;
             /// save first point from panorama and consider all the rest its neighbors
             Point point;
             point.x = points_panorama[0][0];
             point.y = points_panorama[0][1];
             point.z = points_panorama[0][2];
             vector<Point> neighbors;
-            for (size_t i = 1; i < points_panorama.size(); ++i) 
-                neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
+            //for (size_t i = 1; i < points_panorama.size(); ++i) 
+                //neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
             /// compute neighbors by examining adjacent pixels
             for (int i = -1; i <= 1; ++i) {
                 for (int j = -1; j <= 1; ++j) {
@@ -342,7 +342,7 @@ void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& p
                 }
             } 
             /// if no neighbors found, skip normal computation
-            if (neighbors.size() < 1e-5) continue;
+            if (neighbors.size() < 1) continue;
             points_neighbors.push_back( PointNeighbor(point, neighbors) );  
         }
     }
