@@ -110,6 +110,23 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     }
 }
 
+void segmentation_option_dependency(const po::variables_map & vm, segment_method stype, const char *option)
+{
+    if (vm.count("segment") && vm["segment"].as<segment_method>() == stype) {
+        if (!vm.count(option)) {
+            throw std::logic_error (string("this segmentation option needs ")+option+" to be set");
+        }
+    }
+}
+
+void segmentation_option_conflict(const po::variables_map & vm, segment_method stype, const char *option)
+{
+    if (vm.count("segment") && vm["segment"].as<segment_method>() == stype) {
+        if (vm.count(option)) {
+            throw std::logic_error (string("this segmentation option is incompatible with ")+option);
+        }
+    }
+}
 /*
  * parse commandline options, fill arguments
  */
@@ -232,67 +249,36 @@ void parse_options(int argc, char **argv, int &start, int &end,
     else
         itype = M_INTENSITY;
 
-    // option dependencies on segmentation types
-    if (stype == WATERSHED) {
-        if (!vm.count("marker"))
-            throw std::logic_error("watershed segmentation requires --marker to be set");
-        if (vm.count("thresh"))
-            throw std::logic_error("watershed segmentation cannot be used with --thresh");
-        if (vm.count("maxlevel"))
-            throw std::logic_error("watershed segmentation cannot be used with --maxlevel");
-        if (vm.count("radius"))
-            throw std::logic_error("watershed segmentation cannot be used with --radius");
-        if (vm.count("links"))
-            throw std::logic_error("watershed segmentation cannot be used with --links");
-        if (vm.count("clustering"))
-            throw std::logic_error("watershed segmentation cannot be used with --clustering");
-    }
-    if (stype == THRESHOLD) {
-        if (!vm.count("thresh"))
-            throw std::logic_error("threshold segmentation requires --thresh to be set");
-        if (vm.count("marker"))
-            throw std::logic_error("threshold segmentation cannot be used with --marker");
-        if (vm.count("maxlevel"))
-            throw std::logic_error("threshold segmentation cannot be used with --maxlevel");
-        if (vm.count("radius"))
-            throw std::logic_error("threshold segmentation cannot be used with --radius");
-        if (vm.count("links"))
-            throw std::logic_error("threshold segmentation cannot be used with --links");
-        if (vm.count("clustering"))
-            throw std::logic_error("threshold segmentation cannot be used with --clustering");
-    }
-    if (stype == PYR_MEAN_SHIFT) {
-        if (!vm.count("maxlevel"))
-            throw std::logic_error("mean shift segmentation requires --maxlevel to be set");
-        if (!vm.count("radius"))
-            throw std::logic_error("mean shift segmentation requires --radius to be set");
-        if (vm.count("thresh"))
-            throw std::logic_error("mean shift segmentation cannot be used with --thresh");
-        if (vm.count("marker"))
-            throw std::logic_error("mean shift segmentation cannot be used with --marker");
-        if (vm.count("links"))
-            throw std::logic_error("mean shift segmentation cannot be used with --links");
-        if (vm.count("clustering"))
-            throw std::logic_error("mean shift segmentation cannot be used with --clustering");
-    }
-    if (stype == PYR_SEGMENTATION) {
-        if (!vm.count("links"))
-            throw std::logic_error("pyramid segmentation requires --links to be set");
-        if (!vm.count("clustering"))
-            throw std::logic_error("pyramid segmentation requires --clustering to be set");
-        if (vm.count("thresh"))
-            throw std::logic_error("pyramid segmentation cannot be used with --thresh");
-        if (vm.count("marker"))
-            throw std::logic_error("pyramid segmentation cannot be used with --marker");
-        if (vm.count("maxlevel"))
-            throw std::logic_error("pyramid segmentation cannot be used with --maxlevel");
-        if (vm.count("radius"))
-            throw std::logic_error("pyramid segmentation cannot be used with --radius");
-        if (vm.count("links"))
-            throw std::logic_error("pyramid segmentation cannot be used with --links");
-        if (vm.count("clustering"))
-            throw std::logic_error("pyramid segmentation cannot be used with --clustering");
-    }
+    segmentation_option_dependency(vm, WATERSHED, "marker");
+    segmentation_option_conflict(vm, WATERSHED, "thresh");
+    segmentation_option_conflict(vm, WATERSHED, "maxlevel");
+    segmentation_option_conflict(vm, WATERSHED, "radius");
+    segmentation_option_conflict(vm, WATERSHED, "links");
+    segmentation_option_conflict(vm, WATERSHED, "clustering");
+    segmentation_option_conflict(vm, WATERSHED, "levels");
+
+    segmentation_option_conflict(vm, THRESHOLD, "marker");
+    segmentation_option_dependency(vm, THRESHOLD, "thresh");
+    segmentation_option_conflict(vm, THRESHOLD, "maxlevel");
+    segmentation_option_conflict(vm, THRESHOLD, "radius");
+    segmentation_option_conflict(vm, THRESHOLD, "links");
+    segmentation_option_conflict(vm, THRESHOLD, "clustering");
+    segmentation_option_conflict(vm, THRESHOLD, "levels");
+
+    segmentation_option_conflict(vm, PYR_MEAN_SHIFT, "marker");
+    segmentation_option_conflict(vm, PYR_MEAN_SHIFT, "thresh");
+    segmentation_option_dependency(vm, PYR_MEAN_SHIFT, "maxlevel");
+    segmentation_option_dependency(vm, PYR_MEAN_SHIFT, "radius");
+    segmentation_option_conflict(vm, PYR_MEAN_SHIFT, "links");
+    segmentation_option_conflict(vm, PYR_MEAN_SHIFT, "clustering");
+    segmentation_option_conflict(vm, PYR_MEAN_SHIFT, "levels");
+
+    segmentation_option_conflict(vm, PYR_SEGMENTATION, "marker");
+    segmentation_option_conflict(vm, PYR_SEGMENTATION, "thresh");
+    segmentation_option_conflict(vm, PYR_SEGMENTATION, "maxlevel");
+    segmentation_option_conflict(vm, PYR_SEGMENTATION, "radius");
+    segmentation_option_dependency(vm, PYR_SEGMENTATION, "links");
+    segmentation_option_dependency(vm, PYR_SEGMENTATION, "clustering");
 
     // correct pParam and nImages for certain panorama types
     if (ptype == fbr::PANNINI && pParam == 0) {
