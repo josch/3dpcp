@@ -162,6 +162,9 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
+/**
+ * Helper function that maps x, y, z to R, G, B using a linear function
+ */
 void mapNormalToRGB(const Point& normal, Point& rgb) 
 {
     rgb.x = 127.5 * normal.x + 127.5;
@@ -169,8 +172,10 @@ void mapNormalToRGB(const Point& normal, Point& rgb)
     rgb.z = 255.0 * fabs(normal.z);
 } 
 
-void writeNormals(const Scan* scan, const string& dir, 
-                const vector<Point>& points, const vector<Point>& normals) 
+/**
+ * Write normals to .3d files using the uos_rgb format
+ */
+void writeNormals(const Scan* scan, const string& dir, const vector<Point>& points, const vector<Point>& normals) 
 {
 
     stringstream ss; 
@@ -193,6 +198,12 @@ void writeNormals(const Scan* scan, const string& dir,
     pose_file.close();
 }
 
+/**
+ * Compute eigen decomposition of a point and its neighbors using the NEWMAT library
+ * @param point - input points with corresponding neighbors
+ * @param e_values - out parameter returns the eigenvalues 
+ * @param e_vectors - out parameter returns the eigenvectors
+ */
 void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_values, Matrix& e_vectors) 
 {
       Point centroid(0, 0, 0);
@@ -234,7 +245,7 @@ void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_val
 }
 
 /**
- * Computing Neighbors using kNN search
+ * Compute neighbors using kNN search
  * @param points - input set of points
  * @param points_neighbors - output set of points with corresponding neighbors
  * @param knn - k constant in kNN search
@@ -242,7 +253,7 @@ void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_val
  * @param alpha - to be used in adaptive knn search for detecting ill-conditioned neighborhoods
  * @param eps - parameter required by the ANN library in kNN search
  */
-void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1, double alpha=1000.0, double eps=1.0) 
+void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1, double alpha=1000.0, double eps=1.0) 
 {
     cout << "Adapting knn between: " << knn << " and " << kmax << endl;
     ANNpointArray point_array = annAllocPts(points.size(), 3);
@@ -268,7 +279,6 @@ void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points
     }
 
     for (size_t i = 0; i < points.size(); ++i) {
-        cout << "Using knn: " << knn << endl;
         vector<Point> neighbors;
         ANNpoint p = point_array[i];
 
@@ -291,16 +301,59 @@ void computeNeighbors(const vector<Point>& points, vector<PointNeighbor>& points
             cout << endl << e_values << endl;
             if (knn < kmax) 
                 cout << "Increasing kmin to " << ++knn << endl;            
-            else 
-                cout << "Saturated kmin. Using " << knn << endl;
         }       
     }
     
     delete[] n;
     delete[] d;
 }
-    
 
+/**
+ * Compute neighbors using panorama images
+ * @param fPanorama - input panorama image created from the current scan
+ * @param points_neighbors - output set of points with corresponding neighbors
+ */
+void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& points_neighbors) 
+{
+    cv::Mat img = fPanorama.getReflectanceImage();
+    imwrite("test.jpg", img);
+    vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
+    for (int row = 0; row < img.rows; ++row) {
+        for (int col = 0; col < img.cols; ++col) {
+            vector<cv::Vec3f> points_panorama = extended_map[row][col];
+            /// if no points found, skip pixel
+            if (points_panorama.size() < 1e-5) continue;
+            /// save first point from panorama and consider all the rest its neighbors
+            Point point;
+            point.x = points_panorama[0][0];
+            point.y = points_panorama[0][1];
+            point.z = points_panorama[0][2];
+            vector<Point> neighbors;
+            for (size_t i = 1; i < points_panorama.size(); ++i) 
+                neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
+            /// compute neighbors by examining adjacent pixels
+            for (int i = -1; i <= 1; ++i) {
+                for (int j = -1; j <= 1; ++j) {
+                    if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0) &&  !(row+i >= img.rows || col+j >= img.cols) ) {
+                        vector<cv::Vec3f> neighbors_panorama = extended_map[row+i][col+j];
+                        for (size_t k = 0; k < neighbors_panorama.size(); ++k) 
+                            neighbors.push_back(Point (neighbors_panorama[k][0], neighbors_panorama[k][1], neighbors_panorama[k][2]) );
+                    }
+                }
+            } 
+            /// if no neighbors found, skip normal computation
+            if (neighbors.size() < 1e-5) continue;
+            points_neighbors.push_back( PointNeighbor(point, neighbors) );  
+        }
+    }
+}    
+
+/**
+ * Compute normals using PCA given a set of points and their neighbors
+ * @param scan - pointer to current scan, used to compute the position vectors
+ * @param points - input set of points with corresponding neighbors
+ * @param normals - output set of normals
+ */
 void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Point>& normals) 
 {
     ColumnVector origin(3);
@@ -328,22 +381,11 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Po
         // consider first (smallest) eigenvector as the normal
         Real angle = (v1.t() * point_vector).AsScalar();
 
-        // orient towards scan pose TODO: double check this
+        // orient towards scan pose FIXME: works better when orientation is not flipped
         if (angle < 0) {
             //v1 *= -1.0;
         }
         normals.push_back( Point(v1(1), v1(2), v1(3)) );
-    }
-}
-
-void computePanoramaNeighbors(fbr::panorama& fPanorama) {
-    cv::Mat img = fPanorama.getReflectanceImage();
-    imwrite("test.jpg", img);
-    vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
-    for (int row = 0; row < img.rows; ++row) {
-        for (int col = 0; col < img.cols; ++col) {
-            vector<cv::Vec3f> points = extended_map[row][col];
-        }
     }
 }
 
@@ -443,7 +485,7 @@ int main(int argc, char **argv)
             case 0: 
             {
                 vector<PointNeighbor> points_neighbors;
-                computeNeighbors(points, points_neighbors, knn);
+                computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals);
                 writeNormals(scan, dir + "normals/", points, normals);  
                 break;
@@ -451,7 +493,7 @@ int main(int argc, char **argv)
             case 1:
             {
                 vector<PointNeighbor> points_neighbors;
-                computeNeighbors(points, points_neighbors, kmin, kmax, alpha);
+                computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals);
                 writeNormals(scan, dir + "normals/", points, normals);  
                 break;
@@ -462,9 +504,10 @@ int main(int argc, char **argv)
                 scan2mat(scan, scan_cv);
                 fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
                 fPanorama.createPanorama(scan_cv);
-
-                computePanoramaNeighbors(fPanorama);
-
+                vector<PointNeighbor> points_neighbors;
+                computePanoramaNeighbors(fPanorama, points_neighbors);
+                computePCA(scan, points_neighbors, normals);
+                writeNormals(scan, dir + "normals/", points, normals);  
                 break;
             }
             default:
