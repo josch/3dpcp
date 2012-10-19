@@ -235,6 +235,9 @@ void parse_options(int argc, char **argv, int &start, int &end,
     // display help
     if (vm.count("help")) {
         cout << cmdline_options;
+        cout << "\nExample usage:\n"
+             << "bin/scan2segments -s 0 -e 0 -f riegl_txt --segment PYR_SEGMENTATION -l 50 -c 50 -E 4 -D -i ~/path/to/bremen_city\n" 
+             << "bin/scan2segments -s 0 -e 0 -f riegl_txt --segment PYR_SEGMENTATION -l 255 -c 30 -E 2 -D -i ~/path/to/bremen_city\n";
         exit(0);
     }
 
