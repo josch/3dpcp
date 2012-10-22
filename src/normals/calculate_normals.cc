@@ -84,7 +84,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "0 -- use kNN and PCA\n"
          "1 -- use adaptive kNN and PCA\n"
          "2 -- use panorama image neighbors and PCA\n"
-         "3 -- use spherical range image differentiation\n")        
+         "3 -- use spherical range image differentiation\n")
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
         ("kmin,1", po::value<int>(&kmin)->default_value(1),
@@ -128,32 +128,29 @@ void parse_options(int argc, char **argv, int &start, int &end,
     }
 
     switch (normalMethod) {
-        case 0: {
+        case 0:
             cout << "Using kNN and PCA" << endl;
             if (!vm.count("knn"))
-                throw std::logic_error("this normal computation method requires --knn to be set");    
+                throw std::logic_error("this normal computation method requires --knn to be set");
             break;
-        }
-        case 1: {
+        case 1:
             cout << "Using adaptive kNN and PCA" << endl;
             if (!vm.count("kmin"))
                 throw std::logic_error("this normal computation method requires --kmin to be set");
             if (!vm.count("kmax"))
-                throw std::logic_error("this normal computation method requires --kmax to be set");     
-            if (kmax < kmin) 
-                throw std::logic_error("--kmax should be larger than --kmin");                      
+                throw std::logic_error("this normal computation method requires --kmax to be set");
+            if (kmax < kmin)
+                throw std::logic_error("--kmax should be larger than --kmin");
             if (!vm.count("alpha"))
-                throw std::logic_error("this normal computation method requires --alpha to be set");     
+                throw std::logic_error("this normal computation method requires --alpha to be set");
             break;
-        }
-        case 2: {
+        case 2:
             cout << "Using panorama image neighbors and PCA" << endl;
             if (!vm.count("width"))
                 throw std::logic_error("this normal computation method requires --width to be set");
             if (!vm.count("height"))
-                throw std::logic_error("this normal computation method requires --height to be set");  
+                throw std::logic_error("this normal computation method requires --height to be set");
             break;
-        }
         default:
             break;
     }
@@ -162,37 +159,79 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
+/*
+ * retrieve a cv::Mat with x,y,z,r from a scan object
+ * functionality borrowed from scan_cv::convertScanToMat but this function
+ * does not allow a scanserver to be used, prints to stdout and can only
+ * handle a single scan
+ */
+void scan2mat(Scan* scan, cv::Mat& scan_cv) {
+    DataXYZ xyz = scan->get("xyz");
+    DataReflectance xyz_reflectance = scan->get("reflectance");
+    unsigned int nPoints = xyz.size();
+    scan_cv.create(nPoints,1,CV_32FC(4));
+    scan_cv = cv::Scalar::all(0);
+    double zMax = numeric_limits<double>::min();
+    double zMin = numeric_limits<double>::max();
+    cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
+    for(unsigned int i = 0; i < nPoints; i++){
+        float x, y, z, reflectance;
+        x = xyz[i][0];
+        y = xyz[i][1];
+        z = xyz[i][2];
+        reflectance = xyz_reflectance[i];
+        //normalize the reflectance
+        reflectance += 32;
+        reflectance /= 64;
+        reflectance -= 0.2;
+        reflectance /= 0.3;
+        if (reflectance < 0) reflectance = 0;
+        if (reflectance > 1) reflectance = 1;
+        (*it)[0] = x;
+        (*it)[1] = y;
+        (*it)[2] = z;
+        (*it)[3] = reflectance;
+        //finding min and max of z
+        if (z > zMax) zMax = z;
+        if (z < zMin) zMin = z;
+        ++it;
+    }
+}
+
 /**
  * Helper function that maps x, y, z to R, G, B using a linear function
  */
-void mapNormalToRGB(const Point& normal, Point& rgb) 
+void mapNormalToRGB(const Point& normal, Point& rgb)
 {
     rgb.x = 127.5 * normal.x + 127.5;
     rgb.y = 127.5 * normal.y + 127.5;
     rgb.z = 255.0 * fabs(normal.z);
-} 
+}
 
 /**
  * Write normals to .3d files using the uos_rgb format
  */
-void writeNormals(const Scan* scan, const string& dir, const vector<Point>& points, const vector<Point>& normals) 
+void writeNormals(const Scan* scan, const string& dir,
+        const vector<Point>& points, const vector<Point>& normals)
 {
 
-    stringstream ss; 
-    ss << dir << "scan" << string(scan->getIdentifier()) << ".3d"; 
+    stringstream ss;
+    ss << dir << "scan" << string(scan->getIdentifier()) << ".3d";
     ofstream scan_file;
     scan_file.open(ss.str().c_str());
     for(size_t i = 0;  i < points.size(); ++i) {
         Point rgb;
         mapNormalToRGB(normals[i], rgb);
-        scan_file << points[i].x << " " << points[i].y << " " << points[i].z << " "
-                    << (unsigned int) rgb.x << " " << (unsigned int) rgb.y << " " << (unsigned int) rgb.z << "\n";  
+        scan_file
+            << points[i].x << " " << points[i].y << " " << points[i].z << " "
+            << (unsigned int) rgb.x << " " << (unsigned int) rgb.y << " "
+            << (unsigned int) rgb.z << "\n";
     }
     scan_file.close();
 
     ss.clear(); ss.str(string());
     ss << dir << "scan" << string(scan->getIdentifier()) << ".pose";
-    ofstream pose_file; 
+    ofstream pose_file;
     pose_file.open(ss.str().c_str());
     pose_file << 0 << " " << 0 << " " << 0 << "\n" << 0 << " " << 0 << " " << 0 << "\n";
     pose_file.close();
@@ -201,46 +240,47 @@ void writeNormals(const Scan* scan, const string& dir, const vector<Point>& poin
 /**
  * Compute eigen decomposition of a point and its neighbors using the NEWMAT library
  * @param point - input points with corresponding neighbors
- * @param e_values - out parameter returns the eigenvalues 
+ * @param e_values - out parameter returns the eigenvalues
  * @param e_vectors - out parameter returns the eigenvectors
  */
-void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_values, Matrix& e_vectors) 
+void computeEigenDecomposition(const PointNeighbor& point,
+        DiagonalMatrix& e_values, Matrix& e_vectors)
 {
-      Point centroid(0, 0, 0);
-      vector<Point> neighbors = point.neighbors;
+    Point centroid(0, 0, 0);
+    vector<Point> neighbors = point.neighbors;
 
-      for (size_t j = 0; j < neighbors.size(); ++j) {
-          centroid.x += neighbors[j].x;
-          centroid.y += neighbors[j].y;
-          centroid.z += neighbors[j].z;
-      }
-      centroid.x /= (double) neighbors.size();
-      centroid.y /= (double) neighbors.size();
-      centroid.z /= (double) neighbors.size();
+    for (size_t j = 0; j < neighbors.size(); ++j) {
+        centroid.x += neighbors[j].x;
+        centroid.y += neighbors[j].y;
+        centroid.z += neighbors[j].z;
+    }
+    centroid.x /= (double) neighbors.size();
+    centroid.y /= (double) neighbors.size();
+    centroid.z /= (double) neighbors.size();
 
-      Matrix S(3, 3);
-      S = 0.0;
-      for (size_t j = 0; j < neighbors.size(); ++j) {
-          ColumnVector point_prime(3);
-          point_prime(1) = neighbors[j].x - centroid.x;
-          point_prime(2) = neighbors[j].y - centroid.y;
-          point_prime(3) = neighbors[j].z - centroid.z;
-          S = S + point_prime * point_prime.t();
-      }
-      // normalize S
-      for (int j = 0; j < 3; ++j) 
-          for (int k = 0; k < 3; ++k)
-              S(j+1, k+1) /= (double) neighbors.size();
+    Matrix S(3, 3);
+    S = 0.0;
+    for (size_t j = 0; j < neighbors.size(); ++j) {
+        ColumnVector point_prime(3);
+        point_prime(1) = neighbors[j].x - centroid.x;
+        point_prime(2) = neighbors[j].y - centroid.y;
+        point_prime(3) = neighbors[j].z - centroid.z;
+        S = S + point_prime * point_prime.t();
+    }
+    // normalize S
+    for (int j = 0; j < 3; ++j)
+        for (int k = 0; k < 3; ++k)
+            S(j+1, k+1) /= (double) neighbors.size();
 
-      SymmetricMatrix C;
-      C << S;
-      // the decomposition
-      Jacobi(C, e_values, e_vectors);
+    SymmetricMatrix C;
+    C << S;
+    // the decomposition
+    Jacobi(C, e_values, e_vectors);
 
 #ifdef DEBUG
-      // Print the result
-      cout << "The eigenvalues matrix:" << endl;
-      cout << e_values << endl;
+    // Print the result
+    cout << "The eigenvalues matrix:" << endl;
+    cout << e_values << endl;
 #endif
 }
 
@@ -253,7 +293,9 @@ void computeEigenDecomposition(const PointNeighbor& point, DiagonalMatrix& e_val
  * @param alpha - to be used in adaptive knn search for detecting ill-conditioned neighborhoods
  * @param eps - parameter required by the ANN library in kNN search
  */
-void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1, double alpha=1000.0, double eps=1.0) 
+void computeKNearestNeighbors(const vector<Point>& points,
+        vector<PointNeighbor>& points_neighbors, int knn, int kmax=-1,
+        double alpha=1000.0, double eps=1.0)
 {
     ANNpointArray point_array = annAllocPts(points.size(), 3);
     for (size_t i = 0; i < points.size(); ++i) {
@@ -289,7 +331,7 @@ void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>
                 neighbors.push_back(points[n[j]]);
         }
 
-        PointNeighbor current_point(points[i], neighbors); 
+        PointNeighbor current_point(points[i], neighbors);
         points_neighbors.push_back( current_point );
         Matrix e_vectors(3,3); e_vectors = 0.0;
         DiagonalMatrix e_values(3); e_values = 0.0;
@@ -298,12 +340,12 @@ void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>
         if (kmax > 0) {
             /// detecting an ill-conditioned neighborhood
             if (e_values(3) / e_values(2) > alpha && e_values(2) > 0.0) {
-                if (knn < kmax) 
-                    cout << "Increasing kmin to " << ++knn << endl;            
-            }       
+                if (knn < kmax)
+                    cout << "Increasing kmin to " << ++knn << endl;
+            }
         }
     }
-    
+
     delete[] n;
     delete[] d;
 }
@@ -313,8 +355,13 @@ void computeKNearestNeighbors(const vector<Point>& points, vector<PointNeighbor>
  * @param fPanorama - input panorama image created from the current scan
  * @param points_neighbors - output set of points with corresponding neighbors
  */
-void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& points_neighbors) 
+void computePanoramaNeighbors(Scan* scan,
+        vector<PointNeighbor>& points_neighbors, int width, int height)
 {
+    cv::Mat scan_cv;
+    scan2mat(scan, scan_cv);
+    fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
+    fPanorama.createPanorama(scan_cv);
     cv::Mat img = fPanorama.getReflectanceImage();
     imwrite("test.jpg", img);
     vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
@@ -329,24 +376,27 @@ void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& p
             point.y = points_panorama[0][1];
             point.z = points_panorama[0][2];
             vector<Point> neighbors;
-            //for (size_t i = 1; i < points_panorama.size(); ++i) 
-                //neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
+            //for (size_t i = 1; i < points_panorama.size(); ++i)
+            //neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
             /// compute neighbors by examining adjacent pixels
             for (int i = -1; i <= 1; ++i) {
                 for (int j = -1; j <= 1; ++j) {
-                    if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0) &&  !(row+i >= img.rows || col+j >= img.cols) ) {
+                    if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
+                            &&  !(row+i >= img.rows || col+j >= img.cols) ) {
                         vector<cv::Vec3f> neighbors_panorama = extended_map[row+i][col+j];
-                        for (size_t k = 0; k < neighbors_panorama.size(); ++k) 
-                            neighbors.push_back(Point (neighbors_panorama[k][0], neighbors_panorama[k][1], neighbors_panorama[k][2]) );
+                        for (size_t k = 0; k < neighbors_panorama.size(); ++k)
+                            neighbors.push_back(Point (neighbors_panorama[k][0],
+                                        neighbors_panorama[k][1],
+                                        neighbors_panorama[k][2]) );
                     }
                 }
-            } 
+            }
             /// if no neighbors found, skip normal computation
             if (neighbors.size() < 1) continue;
-            points_neighbors.push_back( PointNeighbor(point, neighbors) );  
+            points_neighbors.push_back( PointNeighbor(point, neighbors) );
         }
     }
-}    
+}
 
 /**
  * Compute normals using PCA given a set of points and their neighbors
@@ -354,7 +404,8 @@ void computePanoramaNeighbors(fbr::panorama &fPanorama, vector<PointNeighbor>& p
  * @param points - input set of points with corresponding neighbors
  * @param normals - output set of normals
  */
-void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Point>& normals) 
+void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
+        vector<Point>& normals)
 {
     ColumnVector origin(3);
     const double *scan_pose = scan->get_rPos();
@@ -389,45 +440,6 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points, vector<Po
     }
 }
 
-/*
- * retrieve a cv::Mat with x,y,z,r from a scan object
- * functionality borrowed from scan_cv::convertScanToMat but this function
- * does not allow a scanserver to be used, prints to stdout and can only
- * handle a single scan
- */
-void scan2mat(Scan* scan, cv::Mat& scan_cv) {
-  DataXYZ xyz = scan->get("xyz");
-  DataReflectance xyz_reflectance = scan->get("reflectance");
-  unsigned int nPoints = xyz.size();
-  scan_cv.create(nPoints,1,CV_32FC(4));
-  scan_cv = cv::Scalar::all(0); 
-  double zMax = numeric_limits<double>::min(); 
-  double zMin = numeric_limits<double>::max();
-  cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
-  for(unsigned int i = 0; i < nPoints; i++){
-    float x, y, z, reflectance;
-    x = xyz[i][0];
-    y = xyz[i][1];
-    z = xyz[i][2];
-    reflectance = xyz_reflectance[i];
-    //normalize the reflectance                                     
-    reflectance += 32;
-    reflectance /= 64;
-    reflectance -= 0.2;
-    reflectance /= 0.3;
-    if (reflectance < 0) reflectance = 0;
-    if (reflectance > 1) reflectance = 1;
-    (*it)[0] = x;
-    (*it)[1] = y;
-    (*it)[2] = z;
-    (*it)[3] = reflectance;
-    //finding min and max of z                                      
-    if (z > zMax) zMax = z;
-    if (z < zMin) zMin = z;
-    ++it;
-  }
-}
-
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -441,7 +453,8 @@ int main(int argc, char **argv)
     double alpha;
     int width, height;
 
-    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist, minDist, normalMethod, knn, kmin, kmax, alpha, width, height);
+    parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
+            minDist, normalMethod, knn, kmin, kmax, alpha, width, height);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -481,35 +494,24 @@ int main(int argc, char **argv)
             points.push_back(Point(x, y, z));
         }
 
+        vector<PointNeighbor> points_neighbors;
+
         switch (normalMethod) {
-            case 0: 
-            {
-                vector<PointNeighbor> points_neighbors;
+            case 0:
                 computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals);
-                writeNormals(scan, dir + "normals/", points, normals);  
+                writeNormals(scan, dir + "normals/", points, normals);
                 break;
-            }
             case 1:
-            {
-                vector<PointNeighbor> points_neighbors;
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals);
-                writeNormals(scan, dir + "normals/", points, normals);  
+                writeNormals(scan, dir + "normals/", points, normals);
                 break;
-            }
             case 2:
-            {
-                cv::Mat scan_cv;
-                scan2mat(scan, scan_cv);
-                fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
-                fPanorama.createPanorama(scan_cv);
-                vector<PointNeighbor> points_neighbors;
-                computePanoramaNeighbors(fPanorama, points_neighbors);
+                computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals);
-                writeNormals(scan, dir + "normals/", points, normals);  
+                writeNormals(scan, dir + "normals/", points, normals);
                 break;
-            }
             default:
                 break;
         }
