@@ -389,38 +389,40 @@ void computePanoramaNeighbors(Scan* scan,
     scan2mat(scan, scan_cv);
     fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
     fPanorama.createPanorama(scan_cv);
-    cv::Mat img = fPanorama.getReflectanceImage();
-    imwrite("test.jpg", img);
     vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
-    for (int row = 0; row < img.rows; ++row) {
-        for (int col = 0; col < img.cols; ++col) {
+    for (int row = 0; row < height; ++row) {
+        for (int col = 0; col < width; ++col) {
             vector<cv::Vec3f> points_panorama = extended_map[row][col];
             /// if no points found, skip pixel
             if (points_panorama.size() < 1) continue;
-            /// save first point from panorama and consider all the rest its neighbors
-            Point point;
-            point.x = points_panorama[0][0];
-            point.y = points_panorama[0][1];
-            point.z = points_panorama[0][2];
-            vector<Point> neighbors;
-            //for (size_t i = 1; i < points_panorama.size(); ++i)
-            //neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
-            /// compute neighbors by examining adjacent pixels
-            for (int i = -1; i <= 1; ++i) {
-                for (int j = -1; j <= 1; ++j) {
-                    if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
-                            &&  !(row+i >= img.rows || col+j >= img.cols) ) {
-                        vector<cv::Vec3f> neighbors_panorama = extended_map[row+i][col+j];
-                        for (size_t k = 0; k < neighbors_panorama.size(); ++k)
-                            neighbors.push_back(Point (neighbors_panorama[k][0],
-                                        neighbors_panorama[k][1],
-                                        neighbors_panorama[k][2]) );
+            /// foreach point from panorama consider all the rest as its neighbors
+            for (size_t point_idx = 0; point_idx < points_panorama.size(); ++point_idx) {
+                Point point;
+                point.x = points_panorama[point_idx][0];
+                point.y = points_panorama[point_idx][1];
+                point.z = points_panorama[point_idx][2];
+                vector<Point> neighbors;
+                for (size_t i = 0; i < points_panorama.size(); ++i) {
+                    if (i != point_idx)
+                        neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
+                }
+                /// compute neighbors by examining adjacent pixels
+                for (int i = -1; i <= 1; ++i) {
+                    for (int j = -1; j <= 1; ++j) {
+                        if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
+                                &&  !(row+i >= img.rows || col+j >= img.cols) ) {
+                            vector<cv::Vec3f> neighbors_panorama = extended_map[row+i][col+j];
+                            for (size_t k = 0; k < neighbors_panorama.size(); ++k)
+                                neighbors.push_back(Point (neighbors_panorama[k][0],
+                                            neighbors_panorama[k][1],
+                                            neighbors_panorama[k][2]) );
+                        }
                     }
                 }
+                 /// if no neighbors found, skip normal computation
+                if (neighbors.size() < 1) continue;
+                points_neighbors.push_back( PointNeighbor(point, neighbors) );
             }
-            /// if no neighbors found, skip normal computation
-            if (neighbors.size() < 1) continue;
-            points_neighbors.push_back( PointNeighbor(point, neighbors) );
         }
     }
 }
