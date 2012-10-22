@@ -35,6 +35,26 @@ using std::vector;
 #include <boost/filesystem/fstream.hpp>
 namespace po = boost::program_options;
 
+enum normal_method {KNN_PCA, AKNN_PCA, PANO_PCA, PANO_LS, PANO_SRI};
+
+void normal_option_dependency(const po::variables_map & vm, normal_method ntype, const char *option)
+{
+    if (vm.count("normalMethod") && vm["normalMethod"].as<normal_method>() == ntype) {
+        if (!vm.count(option)) {
+            throw std::logic_error (string("this normal method needs ")+option+" to be set");
+        }
+    }
+}
+
+void normal_option_conflict(const po::variables_map & vm, normal_method ntype, const char *option)
+{
+    if (vm.count("normalMethod") && vm["normalMethod"].as<normal_method>() == ntype) {
+        if (vm.count(option)) {
+            throw std::logic_error (string("this normal method is incompatible with ")+option);
+        }
+    }
+}
+
 /*
  * validates input type specification
  */
@@ -50,12 +70,25 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     }
 }
 
+void validate(boost::any& v, const std::vector<std::string>& values,
+        normal_method*, int) {
+    if (values.size() == 0)
+        throw std::runtime_error("Invalid model specification");
+    string arg = values.at(0);
+    if(strcasecmp(arg.c_str(), "KNN_PCA") == 0) v = KNN_PCA;
+    else if(strcasecmp(arg.c_str(), "AKNN_PCA") == 0) v = AKNN_PCA;
+    else if(strcasecmp(arg.c_str(), "PANO_PCA") == 0) v = PANO_PCA;
+    else if(strcasecmp(arg.c_str(), "PANO_LS") == 0) v = PANO_LS;
+    else if(strcasecmp(arg.c_str(), "PANO_SRI") == 0) v = PANO_SRI;
+    else throw std::runtime_error(std::string("normal method ") + arg + std::string(" is unknown"));
+}
+
 /*
  * parse commandline options, fill arguments
  */
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
-        int &maxDist, int &minDist, int &normalMethod, int &knn,
+        int &maxDist, int &minDist, normal_method &normalMethod, int &knn,
         int &kmin, int &kmax, double& alpha, int &width, int &height)
 {
     po::options_description generic("Generic options");
@@ -79,12 +112,13 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "neglegt all data points with a distance smaller than <arg> 'units")
         ("scanserver,S", po::bool_switch(&scanserver),
          "Use the scanserver as an input method and handling of scan data")
-        ("normalMethod,N", po::value<int>(&normalMethod)->default_value(0),
+        ("normalMethod,N", po::value<normal_method>(&normalMethod)->default_value(KNN_PCA),
          "choose the method for computing normals:\n"
-         "0 -- use kNN and PCA\n"
-         "1 -- use adaptive kNN and PCA\n"
-         "2 -- use panorama image neighbors and PCA\n"
-         "3 -- use spherical range image differentiation\n")
+         "KNN_PCA  -- use kNN and PCA\n"
+         "AKNN_PCA -- use adaptive kNN and PCA\n"
+         "PANO_PCA -- use panorama image neighbors and PCA\n"
+         "PANO_LS  -- use panorama image neighbors and least squares\n"
+         "PANO_SRI -- use panorama image neighbors and spherical range image differentiation\n")
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
         ("kmin,1", po::value<int>(&kmin)->default_value(1),
@@ -127,33 +161,26 @@ void parse_options(int argc, char **argv, int &start, int &end,
         exit(0);
     }
 
-    switch (normalMethod) {
-        case 0:
-            cout << "Using kNN and PCA" << endl;
-            if (!vm.count("knn"))
-                throw std::logic_error("this normal computation method requires --knn to be set");
-            break;
-        case 1:
-            cout << "Using adaptive kNN and PCA" << endl;
-            if (!vm.count("kmin"))
-                throw std::logic_error("this normal computation method requires --kmin to be set");
-            if (!vm.count("kmax"))
-                throw std::logic_error("this normal computation method requires --kmax to be set");
-            if (kmax < kmin)
-                throw std::logic_error("--kmax should be larger than --kmin");
-            if (!vm.count("alpha"))
-                throw std::logic_error("this normal computation method requires --alpha to be set");
-            break;
-        case 2:
-            cout << "Using panorama image neighbors and PCA" << endl;
-            if (!vm.count("width"))
-                throw std::logic_error("this normal computation method requires --width to be set");
-            if (!vm.count("height"))
-                throw std::logic_error("this normal computation method requires --height to be set");
-            break;
-        default:
-            break;
-    }
+    normal_option_dependency(vm, KNN_PCA, "knn");
+    normal_option_conflict(vm, KNN_PCA, "kmin");
+    normal_option_conflict(vm, KNN_PCA, "kmax");
+    normal_option_conflict(vm, KNN_PCA, "alpha");
+    normal_option_conflict(vm, KNN_PCA, "width");
+    normal_option_conflict(vm, KNN_PCA, "height");
+
+    normal_option_conflict(vm, AKNN_PCA, "knn");
+    normal_option_dependency(vm, AKNN_PCA, "kmin");
+    normal_option_dependency(vm, AKNN_PCA, "kmax");
+    normal_option_dependency(vm, AKNN_PCA, "alpha");
+    normal_option_conflict(vm, AKNN_PCA, "width");
+    normal_option_conflict(vm, AKNN_PCA, "height");
+
+    normal_option_conflict(vm, AKNN_PCA, "knn");
+    normal_option_conflict(vm, KNN_PCA, "kmin");
+    normal_option_conflict(vm, KNN_PCA, "kmax");
+    normal_option_conflict(vm, KNN_PCA, "alpha");
+    normal_option_dependency(vm, PANO_PCA, "width");
+    normal_option_dependency(vm, PANO_PCA, "height");
 
     // add trailing slash to directory if not present yet
     if (dir[dir.length()-1] != '/') dir = dir + "/";
@@ -448,7 +475,7 @@ int main(int argc, char **argv)
     int maxDist, minDist;
     string dir;
     IOType iotype;
-    int normalMethod;
+    normal_method normalMethod;
     int knn, kmin, kmax;
     double alpha;
     int width, height;
@@ -497,21 +524,23 @@ int main(int argc, char **argv)
         vector<PointNeighbor> points_neighbors;
 
         switch (normalMethod) {
-            case 0:
+            case KNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
-            case 1:
+            case AKNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
-            case 2:
+            case PANO_PCA:
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
+            case PANO_LS:
+            case PANO_SRI:
             default:
                 break;
         }
