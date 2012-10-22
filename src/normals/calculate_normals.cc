@@ -89,7 +89,8 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
         int &maxDist, int &minDist, normal_method &normalMethod, int &knn,
-        int &kmin, int &kmax, double& alpha, int &width, int &height)
+        int &kmin, int &kmax, double& alpha, int &width, int &height,
+        bool &flipnormals)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -131,6 +132,8 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "width of panorama")
         ("height,h", po::value<int>(&height)->default_value(960),
          "height of panorama")
+        ("flipnormals,F", po::bool_switch(&flipnormals),
+         "flip orientation of normals towards scan pose")
         ;
 
     po::options_description hidden("Hidden options");
@@ -410,7 +413,7 @@ void computePanoramaNeighbors(Scan* scan,
                 for (int i = -1; i <= 1; ++i) {
                     for (int j = -1; j <= 1; ++j) {
                         if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
-                                &&  !(row+i >= img.rows || col+j >= img.cols) ) {
+                                &&  !(row+i >= height || col+j >= width) ) {
                             vector<cv::Vec3f> neighbors_panorama = extended_map[row+i][col+j];
                             for (size_t k = 0; k < neighbors_panorama.size(); ++k)
                                 neighbors.push_back(Point (neighbors_panorama[k][0],
@@ -434,7 +437,7 @@ void computePanoramaNeighbors(Scan* scan,
  * @param normals - output set of normals
  */
 void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
-        vector<Point>& normals)
+        vector<Point>& normals, bool flipnormals)
 {
     ColumnVector origin(3);
     const double *scan_pose = scan->get_rPos();
@@ -461,9 +464,10 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
         // consider first (smallest) eigenvector as the normal
         Real angle = (v1.t() * point_vector).AsScalar();
 
-        // orient towards scan pose FIXME: works better when orientation is not flipped
-        if (angle < 0) {
-            //v1 *= -1.0;
+        // orient towards scan pose
+        // works better when orientation is not flipped
+        if (flipnormals && angle < 0) {
+            v1 *= -1.0;
         }
         normals.push_back( Point(v1(1), v1(2), v1(3)) );
     }
@@ -481,9 +485,11 @@ int main(int argc, char **argv)
     int knn, kmin, kmax;
     double alpha;
     int width, height;
+    bool flipnormals;
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
-            minDist, normalMethod, knn, kmin, kmax, alpha, width, height);
+            minDist, normalMethod, knn, kmin, kmax, alpha, width, height,
+            flipnormals);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -528,17 +534,17 @@ int main(int argc, char **argv)
         switch (normalMethod) {
             case KNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, knn);
-                computePCA(scan, points_neighbors, normals);
+                computePCA(scan, points_neighbors, normals, flipnormals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case AKNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
-                computePCA(scan, points_neighbors, normals);
+                computePCA(scan, points_neighbors, normals, flipnormals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case PANO_PCA:
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
-                computePCA(scan, points_neighbors, normals);
+                computePCA(scan, points_neighbors, normals, flipnormals);
                 writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case PANO_LS:
