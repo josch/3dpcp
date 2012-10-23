@@ -629,6 +629,11 @@ int main(int argc, char **argv)
                 break;
         }
 
+        if (points.size() != normals.size()) {
+            cerr << "got " << points.size() << " points but " << normals.size() << " normals" << endl;
+            return 1;
+        }
+
         writeNormals(scan, dir + "normals/", points, normals);
     }
 
