@@ -422,8 +422,6 @@ void computePanoramaNeighbors(Scan* scan,
                         }
                     }
                 }
-                 /// if no neighbors found, skip normal computation
-                if (neighbors.size() < 1) continue;
                 PointNeighbor current_point(point, neighbors);
                 // add neighbors from range image
                 for (int i = -1; i <= 1; ++i) {
@@ -458,6 +456,11 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
 
     for(size_t i = 0; i < points.size(); ++i) {
         vector<Point> neighbors = points[i].neighbors;
+
+        if (points[i].neighbors.size() < 2) {
+            normals.push_back( Point(0,0,0) );
+            continue;
+        }
 
         ColumnVector point_vector(3);
         point_vector(1) = points[i].point.x - origin(1);
