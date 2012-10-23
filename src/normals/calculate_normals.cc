@@ -195,7 +195,6 @@ void parse_options(int argc, char **argv, int &start, int &end,
  */
 void scan2mat(Scan* scan, cv::Mat& scan_cv) {
     DataXYZ xyz = scan->get("xyz");
-    DataReflectance xyz_reflectance = scan->get("reflectance");
     unsigned int nPoints = xyz.size();
     scan_cv.create(nPoints,1,CV_32FC(4));
     scan_cv = cv::Scalar::all(0);
@@ -203,22 +202,13 @@ void scan2mat(Scan* scan, cv::Mat& scan_cv) {
     double zMin = numeric_limits<double>::max();
     cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
     for(unsigned int i = 0; i < nPoints; i++){
-        float x, y, z, reflectance;
+        float x, y, z;
         x = xyz[i][0];
         y = xyz[i][1];
         z = xyz[i][2];
-        reflectance = xyz_reflectance[i];
-        //normalize the reflectance
-        reflectance += 32;
-        reflectance /= 64;
-        reflectance -= 0.2;
-        reflectance /= 0.3;
-        if (reflectance < 0) reflectance = 0;
-        if (reflectance > 1) reflectance = 1;
         (*it)[0] = x;
         (*it)[1] = y;
         (*it)[2] = z;
-        (*it)[3] = reflectance;
         //finding min and max of z
         if (z > zMax) zMax = z;
         if (z < zMin) zMin = z;
@@ -595,23 +585,12 @@ int main(int argc, char **argv)
         scan->setRangeFilter(maxDist, minDist);
 
         DataXYZ xyz = scan->get("xyz");
-        DataReflectance xyz_reflectance = scan->get("reflectance");
         unsigned int nPoints = xyz.size();
         for(unsigned int i = 0; i < nPoints; ++i) {
-            float x, y, z, reflectance;
+            float x, y, z;
             x = xyz[i][0];
             y = xyz[i][1];
             z = xyz[i][2];
-            reflectance = xyz_reflectance[i];
-
-            //normalize the reflectance
-            reflectance += 32;
-            reflectance /= 64;
-            reflectance -= 0.2;
-            reflectance /= 0.3;
-            if (reflectance < 0) reflectance = 0;
-            if (reflectance > 1) reflectance = 1;
-
             points.push_back(Point(x, y, z));
         }
 
