@@ -207,7 +207,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
 void scan2mat(Scan* scan, cv::Mat& scan_cv) {
     DataXYZ xyz = scan->get("xyz");
     unsigned int nPoints = xyz.size();
-    scan_cv.create(nPoints,1,CV_32FC(3));
+    scan_cv.create(nPoints,1,CV_32FC(4));
     scan_cv = cv::Scalar::all(0);
     double zMax = numeric_limits<double>::min();
     double zMin = numeric_limits<double>::max();
