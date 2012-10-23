@@ -392,6 +392,7 @@ void computePanoramaNeighbors(Scan* scan,
     scan2mat(scan, scan_cv);
     fbr::panorama fPanorama(width, height, fbr::EQUIRECTANGULAR, 1, 0, fbr::EXTENDED);
     fPanorama.createPanorama(scan_cv);
+    cv::Mat img = fPanorama.getRangeImage();
     vector<vector<vector<cv::Vec3f> > > extended_map = fPanorama.getExtendedMap();
     for (int row = 0; row < height; ++row) {
         for (int col = 0; col < width; ++col) {
@@ -424,7 +425,19 @@ void computePanoramaNeighbors(Scan* scan,
                 }
                  /// if no neighbors found, skip normal computation
                 if (neighbors.size() < 1) continue;
-                points_neighbors.push_back( PointNeighbor(point, neighbors) );
+                PointNeighbor current_point(point, neighbors);
+                // add neighbors from range image
+                for (int i = -1; i <= 1; ++i) {
+                    for (int j = -1; j <= 1; ++j) {
+                        if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
+                                && !(row+i >= height || col+j >= width)) {
+                            current_point.range_neighbors[1+i][1+j] = img.at<float>(row+i,col+j);
+                        }
+                    }
+                }
+                current_point.range_image_row = row;
+                current_point.range_image_col = col;
+                points_neighbors.push_back(current_point);
             }
         }
     }
@@ -473,6 +486,179 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
     }
 }
 
+void computeLS(const Scan* scan, const vector<PointNeighbor>& points,
+        vector<Point>& normals, bool flipnormals, int width, int height)
+{
+    float factorx = width/360.0;
+    float factory = height/100.0;
+    float deg2rad = M_PI/180;
+    for(size_t pidx = 0; pidx < points.size(); ++pidx) {
+        PointNeighbor current_point = points[pidx];
+        int i = current_point.range_image_row;
+        int j = current_point.range_image_col;
+        double kart[3], polar[3];
+        kart[0] = current_point.x;
+        kart[1] = current_point.y;
+        kart[2] = current_point.z;
+        toPolar(kart, polar);
+        double _r = polar[2];
+        double phi = polar[1] * 180/M_PI;
+        double theta = polar[0] * 180/M_PI;
+        double n[3];
+
+        if (_r < 10) {
+            for (int i = 0; i < 3; i++) 
+                n[i] = 0;
+            normals.push_back( Point(n[0], n[1], n[2]) );
+            continue;
+        }
+
+
+        phi += (30.0*deg2rad);
+
+        Matrix b(3, 1); b = 0;
+        Matrix M(3, 3); M = 0; 
+
+
+        if (i>0) {
+            Matrix v(3,1);
+            double _th, _ph; double _rh;
+            _rh = current_point.range_neighbors[0][1]+1;
+            _ph = phi - (1.0 / (double)factorx) * deg2rad;
+            _th = theta;
+            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
+            M += v * v.t();
+            v /= _rh;
+            b += v;
+        }
+
+
+        if (j>0) {
+            Matrix v(3,1);
+            double _th, _ph; double _rh;
+            _rh = current_point.range_neighbors[1][0]+1;
+            _ph = phi;
+            _th = theta - (1.0 / (double)factory) * deg2rad;
+            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
+            M += v * v.t();
+            v /= _rh;
+            b += v;
+        }
+
+
+        if (i<height-1) {
+            Matrix v(3,1);
+            double _th, _ph; double _rh;
+            _rh = current_point.range_neighbors[2][1]+1;
+            _ph = phi + (1.0 / (double)factorx) * deg2rad;
+            _th = theta;
+            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
+            M += v * v.t();
+            v /= _rh;
+            b += v;
+        }
+
+
+        if (j<width-1) {
+            Matrix v(3,1);
+            double _th, _ph; double _rh;
+            _rh = current_point.range_neighbors[1][2]+1;
+            _ph = phi;
+            _th = theta + (1.0 / (double)factory) * deg2rad;
+            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
+            M += v * v.t();
+            v /= _rh;
+            b += v;
+        }
+
+        Matrix N = M.i() * b;
+
+        n[0] = N(1,1);
+        n[1] = N(2,1);
+        n[2] = -N(3,1);
+
+        double m = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+        n[0] /= m; n[1] /= m; n[2] /= m;
+
+        normals.push_back( Point(n[0], n[1], n[2]) );
+    }
+}
+
+void sobel(PointNeighbor& current_point, double& dRdTheta, double& dRdPhi)
+{
+  dRdPhi += 10*current_point.range_neighbors[0][1];
+  dRdPhi += 3 *current_point.range_neighbors[0][0];
+  dRdPhi += 3 *current_point.range_neighbors[0][2];
+  dRdPhi -= 10*current_point.range_neighbors[2][1];
+  dRdPhi -= 3 *current_point.range_neighbors[2][0];
+  dRdPhi -= 3 *current_point.range_neighbors[2][2];
+    
+  dRdTheta += 10*current_point.range_neighbors[1][0];
+  dRdTheta += 3 *current_point.range_neighbors[0][0];
+  dRdTheta += 3 *current_point.range_neighbors[2][0];
+  dRdTheta -= 10*current_point.range_neighbors[1][2];
+  dRdTheta -= 3 *current_point.range_neighbors[0][2];
+  dRdTheta -= 3 *current_point.range_neighbors[2][2];
+}
+
+void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
+        vector<Point>& normals, bool flipnormals, int width, int height)
+{
+    float factorx = width/360.0;
+    float factory = height/100.0;
+    float deg2rad = M_PI/180;
+    for(size_t pidx = 0; pidx < points.size(); ++pidx) {
+        PointNeighbor current_point = points[pidx];
+        int i = current_point.range_image_row;
+        int j = current_point.range_image_col;
+        double kart[3], polar[3];
+        kart[0] = current_point.x;
+        kart[1] = current_point.y;
+        kart[2] = current_point.z;
+        toPolar(kart, polar);
+        double rho = polar[2];
+        double phi = polar[1] * 180/M_PI;
+        double theta = polar[0] * 180/M_PI;
+        double n[3];
+
+        // if no point return 0 normal
+        if (rho < 10) {
+            for (int i = 0; i < 3; i++)
+                n[i] = 0;
+            normals.push_back( Point(n[0], n[1], n[2]) );
+            continue;
+        }
+
+        // partial derivative values
+        double dRdTheta = 0.0;
+        double dRdPhi = 0.0;
+
+        if (i != 0 && i != height-1 && j != 0 && j != width-1)
+            sobel(current_point, dRdTheta, dRdPhi);
+
+        // add more weight to derivatives
+        dRdTheta *= factory*2;
+        dRdPhi *= factorx*2;
+
+        phi += (30.0*deg2rad);
+
+        n[0] = cos(theta) * sin(phi) - sin(theta) * dRdTheta / rho / sin(phi) + 
+            cos(theta) * cos(phi) * dRdPhi / rho;
+
+        n[1] = sin(theta) * sin(phi) + cos(theta) * dRdTheta / rho / sin(phi) + 
+            sin(theta) * cos(phi) * dRdPhi / rho;
+
+        n[2] =  cos(phi) - sin(phi) * dRdPhi / rho;
+
+        n[2] = -n[2];
+
+        double m = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
+        n[0] /= m; n[1] /= m; n[2] /= m;
+
+        normals.push_back( Point(n[0], n[1], n[2]) );
+    }
+}
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -502,8 +688,8 @@ int main(int argc, char **argv)
     boost::filesystem::create_directory(boost_dir);
 
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
-        vector<Point> points, normals;
         Scan* scan = *it;
+        vector<Point> points;
 
         // apply optional filtering
         scan->setRangeFilter(maxDist, minDist);
@@ -530,28 +716,34 @@ int main(int argc, char **argv)
         }
 
         vector<PointNeighbor> points_neighbors;
+        vector<Point> normals;
 
         switch (normalMethod) {
             case KNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals, flipnormals);
-                writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case AKNN_PCA:
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals, flipnormals);
-                writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case PANO_PCA:
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals, flipnormals);
-                writeNormals(scan, dir + "normals/", points, normals);
                 break;
             case PANO_LS:
+                computePanoramaNeighbors(scan, points_neighbors, width, height);
+                computeLS(scan, points_neighbors, normals, flipnormals, width, height);
+                break;
             case PANO_SRI:
+                computePanoramaNeighbors(scan, points_neighbors, width, height);
+                computeSRI(scan, points_neighbors, normals, flipnormals, width, height);
+                break;
             default:
                 break;
         }
+
+        writeNormals(scan, dir + "normals/", points, normals);
     }
 
     Scan::closeDirectory();

@@ -36,6 +36,10 @@ class PointNeighbor : Point {
 
     std::vector<Point> neighbors;
 
+    float range_neighbors[3][3];
+    int range_image_row;
+    int range_image_col;
+
     PointNeighbor() : Point() {
         neighbors.clear();
     }    
