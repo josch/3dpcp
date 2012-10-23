@@ -118,17 +118,17 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "AKNN_PCA -- use adaptive kNN and PCA\n"
          "PANO_PCA -- use panorama image neighbors and PCA\n"
          "PANO_SRI -- use panorama image neighbors and spherical range image differentiation\n")
-        ("knn,K", po::value<int>(&knn)->default_value(1),
+        ("knn,K", po::value<int>(&knn),
          "select the k in kNN search")
-        ("kmin,1", po::value<int>(&kmin)->default_value(1),
+        ("kmin,1", po::value<int>(&kmin),
          "select k_min in adaptive kNN search")
-        ("kmax,2", po::value<int>(&kmax)->default_value(0),
+        ("kmax,2", po::value<int>(&kmax),
          "select k_max in adaptive kNN search")
-        ("alpha,a", po::value<double>(&alpha)->default_value(100.0),
+        ("alpha,a", po::value<double>(&alpha),
          "select the alpha parameter for detecting an ill-conditioned neighborhood")
-        ("width,w", po::value<int>(&width)->default_value(1280),
+        ("width,w", po::value<int>(&width),
          "width of panorama")
-        ("height,h", po::value<int>(&height)->default_value(960),
+        ("height,h", po::value<int>(&height),
          "height of panorama")
         ("flipnormals,F", po::bool_switch(&flipnormals),
          "flip orientation of normals towards scan pose")
@@ -176,10 +176,10 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_conflict(vm, AKNN_PCA, "width");
     normal_option_conflict(vm, AKNN_PCA, "height");
 
-    normal_option_conflict(vm, AKNN_PCA, "knn");
-    normal_option_conflict(vm, KNN_PCA, "kmin");
-    normal_option_conflict(vm, KNN_PCA, "kmax");
-    normal_option_conflict(vm, KNN_PCA, "alpha");
+    normal_option_conflict(vm, PANO_PCA, "knn");
+    normal_option_conflict(vm, PANO_PCA, "kmin");
+    normal_option_conflict(vm, PANO_PCA, "kmax");
+    normal_option_conflict(vm, PANO_PCA, "alpha");
     normal_option_dependency(vm, PANO_PCA, "width");
     normal_option_dependency(vm, PANO_PCA, "height");
 
