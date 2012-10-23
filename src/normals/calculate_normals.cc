@@ -35,7 +35,7 @@ using std::vector;
 #include <boost/filesystem/fstream.hpp>
 namespace po = boost::program_options;
 
-enum normal_method {KNN_PCA, AKNN_PCA, PANO_PCA, PANO_LS, PANO_SRI};
+enum normal_method {KNN_PCA, AKNN_PCA, PANO_PCA, PANO_SRI};
 
 void normal_option_dependency(const po::variables_map & vm, normal_method ntype, const char *option)
 {
@@ -78,7 +78,6 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     if(strcasecmp(arg.c_str(), "KNN_PCA") == 0) v = KNN_PCA;
     else if(strcasecmp(arg.c_str(), "AKNN_PCA") == 0) v = AKNN_PCA;
     else if(strcasecmp(arg.c_str(), "PANO_PCA") == 0) v = PANO_PCA;
-    else if(strcasecmp(arg.c_str(), "PANO_LS") == 0) v = PANO_LS;
     else if(strcasecmp(arg.c_str(), "PANO_SRI") == 0) v = PANO_SRI;
     else throw std::runtime_error(std::string("normal method ") + arg + std::string(" is unknown"));
 }
@@ -118,7 +117,6 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "KNN_PCA  -- use kNN and PCA\n"
          "AKNN_PCA -- use adaptive kNN and PCA\n"
          "PANO_PCA -- use panorama image neighbors and PCA\n"
-         "PANO_LS  -- use panorama image neighbors and least squares\n"
          "PANO_SRI -- use panorama image neighbors and spherical range image differentiation\n")
         ("knn,K", po::value<int>(&knn)->default_value(1),
          "select the k in kNN search")
@@ -486,104 +484,6 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
     }
 }
 
-void computeLS(const Scan* scan, const vector<PointNeighbor>& points,
-        vector<Point>& normals, bool flipnormals, int width, int height)
-{
-    float factorx = width/360.0;
-    float factory = height/100.0;
-    float deg2rad = M_PI/180;
-    for(size_t pidx = 0; pidx < points.size(); ++pidx) {
-        PointNeighbor current_point = points[pidx];
-        int i = current_point.range_image_row;
-        int j = current_point.range_image_col;
-        double kart[3], polar[3];
-        kart[0] = current_point.x;
-        kart[1] = current_point.y;
-        kart[2] = current_point.z;
-        toPolar(kart, polar);
-        double _r = polar[2];
-        double phi = polar[1] * 180/M_PI;
-        double theta = polar[0] * 180/M_PI;
-        double n[3];
-
-        if (_r < 10) {
-            for (int i = 0; i < 3; i++) 
-                n[i] = 0;
-            normals.push_back( Point(n[0], n[1], n[2]) );
-            continue;
-        }
-
-
-        phi += (30.0*deg2rad);
-
-        Matrix b(3, 1); b = 0;
-        Matrix M(3, 3); M = 0; 
-
-
-        if (i>0) {
-            Matrix v(3,1);
-            double _th, _ph; double _rh;
-            _rh = current_point.range_neighbors[0][1]+1;
-            _ph = phi - (1.0 / (double)factorx) * deg2rad;
-            _th = theta;
-            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
-            M += v * v.t();
-            v /= _rh;
-            b += v;
-        }
-
-
-        if (j>0) {
-            Matrix v(3,1);
-            double _th, _ph; double _rh;
-            _rh = current_point.range_neighbors[1][0]+1;
-            _ph = phi;
-            _th = theta - (1.0 / (double)factory) * deg2rad;
-            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
-            M += v * v.t();
-            v /= _rh;
-            b += v;
-        }
-
-
-        if (i<height-1) {
-            Matrix v(3,1);
-            double _th, _ph; double _rh;
-            _rh = current_point.range_neighbors[2][1]+1;
-            _ph = phi + (1.0 / (double)factorx) * deg2rad;
-            _th = theta;
-            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
-            M += v * v.t();
-            v /= _rh;
-            b += v;
-        }
-
-
-        if (j<width-1) {
-            Matrix v(3,1);
-            double _th, _ph; double _rh;
-            _rh = current_point.range_neighbors[1][2]+1;
-            _ph = phi;
-            _th = theta + (1.0 / (double)factory) * deg2rad;
-            v << cos(_th)*sin(_ph) << sin(_th)*sin(_ph) << cos(_ph);
-            M += v * v.t();
-            v /= _rh;
-            b += v;
-        }
-
-        Matrix N = M.i() * b;
-
-        n[0] = N(1,1);
-        n[1] = N(2,1);
-        n[2] = -N(3,1);
-
-        double m = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-        n[0] /= m; n[1] /= m; n[2] /= m;
-
-        normals.push_back( Point(n[0], n[1], n[2]) );
-    }
-}
-
 void sobel(PointNeighbor& current_point, double& dRdTheta, double& dRdPhi)
 {
   dRdPhi += 10*current_point.range_neighbors[0][1];
@@ -730,10 +630,6 @@ int main(int argc, char **argv)
             case PANO_PCA:
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals, flipnormals);
-                break;
-            case PANO_LS:
-                computePanoramaNeighbors(scan, points_neighbors, width, height);
-                computeLS(scan, points_neighbors, normals, flipnormals, width, height);
                 break;
             case PANO_SRI:
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
