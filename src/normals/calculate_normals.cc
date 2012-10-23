@@ -183,6 +183,13 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_dependency(vm, PANO_PCA, "width");
     normal_option_dependency(vm, PANO_PCA, "height");
 
+    normal_option_conflict(vm, PANO_SRI, "knn");
+    normal_option_conflict(vm, PANO_SRI, "kmin");
+    normal_option_conflict(vm, PANO_SRI, "kmax");
+    normal_option_conflict(vm, PANO_SRI, "alpha");
+    normal_option_dependency(vm, PANO_SRI, "width");
+    normal_option_dependency(vm, PANO_SRI, "height");
+
     // add trailing slash to directory if not present yet
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
