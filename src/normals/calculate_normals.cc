@@ -196,11 +196,11 @@ void parse_options(int argc, char **argv, int &start, int &end,
 void scan2mat(Scan* scan, cv::Mat& scan_cv) {
     DataXYZ xyz = scan->get("xyz");
     unsigned int nPoints = xyz.size();
-    scan_cv.create(nPoints,1,CV_32FC(4));
+    scan_cv.create(nPoints,1,CV_32FC(3));
     scan_cv = cv::Scalar::all(0);
     double zMax = numeric_limits<double>::min();
     double zMin = numeric_limits<double>::max();
-    cv::MatIterator_<cv::Vec4f> it = scan_cv.begin<cv::Vec4f>();
+    cv::MatIterator_<cv::Vec3f> it = scan_cv.begin<cv::Vec3f>();
     for(unsigned int i = 0; i < nPoints; i++){
         float x, y, z;
         x = xyz[i][0];
@@ -449,9 +449,9 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
         vector<Point> neighbors = points[i].neighbors;
 
         ColumnVector point_vector(3);
-        point_vector(1) = points[i].x - origin(1);
-        point_vector(2) = points[i].y - origin(2);
-        point_vector(3) = points[i].z - origin(3);
+        point_vector(1) = points[i].point.x - origin(1);
+        point_vector(2) = points[i].point.y - origin(2);
+        point_vector(3) = points[i].point.z - origin(3);
         point_vector = point_vector / point_vector.NormFrobenius();
 
         Matrix e_vectors(3,3); e_vectors = 0.0;
@@ -502,9 +502,9 @@ void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
         int i = current_point.range_image_row;
         int j = current_point.range_image_col;
         double kart[3], polar[3];
-        kart[0] = current_point.x;
-        kart[1] = current_point.y;
-        kart[2] = current_point.z;
+        kart[0] = current_point.point.x;
+        kart[1] = current_point.point.y;
+        kart[2] = current_point.point.z;
         toPolar(kart, polar);
         double rho = polar[2];
         double phi = polar[1] * 180/M_PI;
