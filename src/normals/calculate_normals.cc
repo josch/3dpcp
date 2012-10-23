@@ -209,20 +209,11 @@ void scan2mat(Scan* scan, cv::Mat& scan_cv) {
     unsigned int nPoints = xyz.size();
     scan_cv.create(nPoints,1,CV_32FC(4));
     scan_cv = cv::Scalar::all(0);
-    double zMax = numeric_limits<double>::min();
-    double zMin = numeric_limits<double>::max();
     cv::MatIterator_<cv::Vec3f> it = scan_cv.begin<cv::Vec3f>();
     for(unsigned int i = 0; i < nPoints; i++){
-        float x, y, z;
-        x = xyz[i][0];
-        y = xyz[i][1];
-        z = xyz[i][2];
-        (*it)[0] = x;
-        (*it)[1] = y;
-        (*it)[2] = z;
-        //finding min and max of z
-        if (z > zMax) zMax = z;
-        if (z < zMin) zMin = z;
+        (*it)[0] = xyz[i][0];
+        (*it)[1] = xyz[i][1];
+        (*it)[2] = xyz[i][2];
         ++it;
     }
 }
