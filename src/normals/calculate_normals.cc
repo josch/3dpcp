@@ -20,6 +20,9 @@ using namespace NEWMAT;
 #include "slam6d/globals.icc"
 #include "slam6d/fbr/panorama.h"
 
+#include "normals/point.h"
+#include "normals/SRI.h"
+
 #include <string>
 using std::string;
 
@@ -552,6 +555,31 @@ void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
     }
 }
 
+void computeSRInew(Scan* scan, int factor, vector<Point>& points, vector<Point>& normals)
+{
+    SRI *sri2 = new SRI(0, factor);
+    points.clear();
+    cout << points.size() << endl;
+
+    DataXYZ xyz = scan->get("xyz");
+    unsigned int nPoints = xyz.size();
+    for(unsigned int i = 0; i < nPoints; i++){
+        sri2->addPoint(xyz[i][0], xyz[i][1], xyz[i][2]);
+    }
+
+    for (unsigned int i = 0; i < sri2->points.size(); i++) {
+        double rgbN[3];
+        PointN* p = sri2->points[i];
+        double x, y, z;
+        p->getCartesian(x, y, z);
+        sri2->getNormalSRI(p, rgbN);
+        normals.push_back(Point(rgbN[0], rgbN[1], rgbN[2]));
+        points.push_back(Point(x, y, z));
+    }
+    cout << points.size() << endl;
+    cout << normals.size() << endl;
+}
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -614,8 +642,11 @@ int main(int argc, char **argv)
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_SRI:
+                /*
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computeSRI(scan, points_neighbors, normals, flipnormals, width, height);
+                */
+                computeSRInew(scan, 1, points, normals);
                 break;
             default:
                 break;
