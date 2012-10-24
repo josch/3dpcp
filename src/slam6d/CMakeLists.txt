@@ -6,7 +6,7 @@ IF(WITH_TOOLS)
   add_executable(scan_red scan_red.cc fbr/fbr_global.cc fbr/panorama.cc fbr/scan_cv.cc)
   
   IF(UNIX)
-    target_link_libraries(scan_red scan dl ANN fbr_cv_io fbr_panorama ${OpenCV_LIBS})
+	  target_link_libraries(scan_red scan dl ANN fbr_cv_io fbr_panorama ${OpenCV_LIBS} ${Boost_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY})
   ENDIF(UNIX)
 
   IF (WIN32)
@@ -41,6 +41,8 @@ IF(WITH_TOOLS)
     target_link_libraries(graph_balancer scan ${Boost_GRAPH_LIBRARY} ${Boost_SERIALIZATION_LIBRARY} ${Boost_REGEX_LIBRARY})
     target_link_libraries(exportPoints scan dl ANN)
     target_link_libraries(toGlobal scan)
+    target_link_libraries(convergence ${Boost_LIBRARIES})
+    target_link_libraries(pose2frames ${Boost_LIBRARIES})
   ENDIF(UNIX)
 
   

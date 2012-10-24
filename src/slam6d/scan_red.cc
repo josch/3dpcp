@@ -71,205 +71,275 @@ using std::ofstream;
 #include <dlfcn.h>
 #endif
 
-//Vertical angle of view of scanner
-#define MAX_ANGLE 60.0
-#define MIN_ANGLE -40.0
 
 #define IMAGE_HEIGHT 1000
 #define IMAGE_WIDTH 3600
 
 using namespace fbr;
 
-projection_method strToPMethod(string method){
-  if(strcasecmp(method.c_str(), "EQUIRECTANGULAR") == 0) return EQUIRECTANGULAR;
-  else if(strcasecmp(method.c_str(), "CYLINDRICAL") == 0) return CYLINDRICAL;
-  else if(strcasecmp(method.c_str(), "MERCATOR") == 0) return MERCATOR;
-  else if(strcasecmp(method.c_str(), "CONIC") == 0) return CONIC;
-  else throw std::runtime_error(std::string("projection method ") + method + std::string(" is unknown"));
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
+
+enum reduction_method {OCTREE, RANGE, INTERPOLATE};
+
+/* Function used to check that 'opt1' and 'opt2' are not specified
+   at the same time. */
+void conflicting_options(const po::variables_map & vm,
+                         const char *opt1, const char *opt2)
+{
+    if (vm.count(opt1) && !vm[opt1].defaulted()
+        && vm.count(opt2) && !vm[opt2].defaulted())
+        throw std::logic_error(string("Conflicting options '")
+                               + opt1 + "' and '" + opt2 + "'.");
 }
 
-/**
- * Explains the usage of this program's command line parameters
- */
-void usage(char* prog)
+/* Function used to check that if 'for_what' is specified, then
+   'required_option' is specified too. */
+void option_dependency(const po::variables_map & vm,
+                       const char *for_what, const char *required_option)
 {
-#ifndef _MSC_VER
-  const string bold("\033[1m");
-  const string normal("\033[m");
-#else
-  const string bold("");
-  const string normal("");
-#endif
-  cout << endl
-	  << bold << "USAGE " << normal << endl
-	  << "   " << prog << " [options] -r <NR> directory" << endl << endl;
-  cout << bold << "OPTIONS" << normal << endl
-	  << bold << "  -s" << normal << " NR, " << bold << "--start=" << normal << "NR" << endl
-	  << "         start at scan NR (i.e., neglects the first NR scans)" << endl
-	  << "         [ATTENTION: counting naturally starts with 0]" << endl
-	  << endl
-	  << bold << "  -e" << normal << " NR, " << bold << "--end=" << normal << "NR" << endl
-	  << "         end after scan NR" << endl
-	  << endl
-	  << bold << "  -f" << normal << " F, " << bold << "--format=" << normal << "F" << endl
-	  << "         using shared library F for input" << endl
-	  << "         (choose F from {uos, uos_map, uos_rgb, uos_frames, uos_map_frames, old, rts, rts_map, ifp, riegl_txt, riegl_rgb, riegl_bin, zahn, ply})" << endl
-	  << endl
-	  << bold << "  -m" << normal << " NR, " << bold << "--max=" << normal << "NR" << endl
-	  << "         neglegt all data points with a distance larger than NR 'units'" << endl
-	  << endl
-	  << bold << "  -M" << normal << " NR, " << bold << "--min=" << normal << "NR" << endl
-	  << "         neglegt all data points with a distance smaller than NR 'units'" << endl
-	  << endl
-	  << bold << "  -r" << normal << " NR, " << bold << "--reduce=" << normal << "NR" << endl
-	  << "         if NR >= 0, turns on octree based point reduction (voxel size=<NR>)" << endl
-	  << "         if NR < 0, turns on rescaling based reduction" << endl
-	  << endl
-       << bold << "  -I" << normal << " NR," << bold << "--rangeimage=" << normal << "NR" << endl
-	  << "         use rescaling of the range image as reduction method" << endl
-	  << "         if NR = 1 recovers ranges from range image" << endl
-	  << "         if NR = 2 interpolates 3D points in the image map" << endl
-       << "         if NR is omitted, then NR=1 is selected" << endl
-	  << endl
-	  << bold << "  -p" << normal << " MET," << bold << "--projection=" << normal << "MET" << endl
-	  << "         create range image using the MET projection method" << endl
-	  << "         (choose MET from [EQUIRECTANGULAR|CYLINDRICAL|MERCATOR|CONIC])" << endl
-    	  << bold << "  -S, --scanserver" << normal << endl
-	  << "         Use the scanserver as an input method and handling of scan data" << endl
-	  << endl << endl;
-  
-  cout << bold << "EXAMPLES " << normal << endl
-	  << "   " << prog << " -m 500 -r 5 dat" << endl
-	  << "   " << prog << " --max=5000 -r 10.2 dat" << endl
-	  << "   " << prog << " -s 2 -e 10 -r dat" << endl
-	  << "   " << prog << " -s 0 -e 1 -r 10 -I=1  dat " << endl << endl;
-  exit(1);
+    if (vm.count(for_what) && !vm[for_what].defaulted())
+        if (vm.count(required_option) == 0
+            || vm[required_option].defaulted())
+            throw std::logic_error(string("Option '") + for_what +
+                                   "' requires option '" +
+                                   required_option + "'.");
 }
 
-/** A function that parses the command-line arguments and sets the respective flags.
- * @param argc the number of arguments
- * @param argv the arguments
- * @param dir the directory
- * @param red using point reduction?
- * @param rand use randomized point reduction?
- * @param start starting at scan number 'start'
- * @param end stopping at scan number 'end'
- * @param maxDist - maximal distance of points being loaded
- * @param minDist - minimal distance of points being loaded
- * @param projection - projection method for building range image
- * @param quiet switches on/off the quiet mode
- * @param veryQuiet switches on/off the 'very quiet' mode
- * @return 0, if the parsing was successful. 1 otherwise
+/*
+ * validates panorama method specification
  */
-int parseArgs(int argc, char **argv, string &dir, double &red, 
-		    int &start, int &end, int &maxDist, int &minDist,
-		    string &projection, int &octree, IOType &type,
-		    int &rangeimage, bool &scanserver)
+namespace fbr {
+    void validate(boost::any& v, const std::vector<std::string>& values,
+                  projection_method*, int) {
+        if (values.size() == 0)
+            throw std::runtime_error("Invalid model specification");
+        string arg = values.at(0);
+        if(strcasecmp(arg.c_str(), "EQUIRECTANGULAR") == 0) v = EQUIRECTANGULAR;
+        else if(strcasecmp(arg.c_str(), "CYLINDRICAL") == 0) v = CYLINDRICAL;
+        else if(strcasecmp(arg.c_str(), "MERCATOR") == 0) v = MERCATOR;
+        else if(strcasecmp(arg.c_str(), "RECTILINEAR") == 0) v = RECTILINEAR;
+        else if(strcasecmp(arg.c_str(), "PANNINI") == 0) v = PANNINI;
+        else if(strcasecmp(arg.c_str(), "STEREOGRAPHIC") == 0) v = STEREOGRAPHIC;
+        else if(strcasecmp(arg.c_str(), "ZAXIS") == 0) v = ZAXIS;
+        else if(strcasecmp(arg.c_str(), "CONIC") == 0) v = CONIC;
+        else throw std::runtime_error(std::string("projection method ") + arg + std::string(" is unknown"));
+    }
+}
+
+/*
+ * validates input type specification
+ */
+void validate(boost::any& v, const std::vector<std::string>& values,
+    IOType*, int) {
+    if (values.size() == 0)
+        throw std::runtime_error("Invalid model specification");
+    string arg = values.at(0);
+    try {
+        v = formatname_to_io_type(arg.c_str());
+    } catch (...) { // runtime_error
+        throw std::runtime_error("Format " + arg + " unknown.");
+    }
+}
+
+/*
+ * validates reduction method specification
+ */
+void validate(boost::any& v, const std::vector<std::string>& values,
+        reduction_method*, int) {
+    if (values.size() == 0)
+        throw std::runtime_error("Invalid model specification");
+    string arg = values.at(0);
+    if(strcasecmp(arg.c_str(), "OCTREE") == 0) v = OCTREE;
+    else if(strcasecmp(arg.c_str(), "RANGE") == 0) v = RANGE;
+    else if(strcasecmp(arg.c_str(), "INTERPOLATE") == 0) v = INTERPOLATE;
+    else throw std::runtime_error(std::string("reduction method ") + arg + std::string(" is unknown"));
+}
+
+void parse_options(int argc, char **argv, int &start, int &end,
+        bool &scanserver, int &width, int &height,
+        fbr::projection_method &ptype, string &dir, IOType &iotype,
+        int &maxDist, int &minDist, reduction_method &rtype, double &scale,
+        double &voxel, int &octree)
 {
-  bool reduced = false;
-  int  c;
-  // from unistd.h:
-  extern char *optarg;
-  extern int optind;
+    po::options_description generic("Generic options");
+    generic.add_options()
+        ("help,h", "output this help message");
 
-  WriteOnce<IOType> w_type(type);
-  WriteOnce<int> w_start(start), w_end(end);
+    po::options_description input("Input options");
+    input.add_options()
+        ("start,s", po::value<int>(&start)->default_value(0),
+         "start at scan <arg> (i.e., neglects the first <arg> scans) "
+         "[ATTENTION: counting naturally starts with 0]")
+        ("end,e", po::value<int>(&end)->default_value(-1),
+         "end after scan <arg>")
+        ("format,f", po::value<IOType>(&iotype)->default_value(UOS),
+         "using shared library <arg> for input. (chose F from {uos, uos_map, "
+         "uos_rgb, uos_frames, uos_map_frames, old, rts, rts_map, ifp, "
+         "riegl_txt, riegl_rgb, riegl_bin, zahn, ply})")
+        ("max,M", po::value<int>(&maxDist)->default_value(-1),
+         "neglegt all data points with a distance larger than <arg> 'units")
+        ("min,m", po::value<int>(&minDist)->default_value(-1),
+         "neglegt all data points with a distance smaller than <arg> 'units")
+        ("scanserver,S", po::bool_switch(&scanserver),
+         "Use the scanserver as an input method and handling of scan data");
 
-  /* options descriptor */
-  // 0: no arguments, 1: required argument, 2: optional argument
-  static struct option longopts[] = {
-    { "format",          required_argument,   0,  'f' },  
-    { "max",             required_argument,   0,  'm' },
-    { "min",             required_argument,   0,  'M' },
-    { "start",           required_argument,   0,  's' },
-    { "end",             required_argument,   0,  'e' },
-    { "reduce",          required_argument,   0,  'r' },
-    { "octree",          optional_argument,   0,  'O' },
-    { "rangeimage",      optional_argument,   0,  'I' },
-    { "projection",      required_argument,   0,  'p' },
-    { "scanserver",      no_argument,         0,  'S' },
-    { 0,           0,   0,   0}                    // needed, cf. getopt.h
-  };
+    po::options_description reduction("Reduction options");
+    reduction.add_options()
+        ("reduction,r", po::value<reduction_method>(&rtype),
+         "choose reduction method (OCTREE, RANGE, INTERPOLATE)")
+        ("scale,S", po::value<double>(&scale),
+         "scaling factor")
+        ("voxel,v", po::value<double>(&voxel),
+         "voxel size")
+        ("projection,P", po::value<fbr::projection_method>(&ptype),
+         "projection method or panorama image")
+        ("octree,O", po::value<int>(&octree));
 
-  cout << endl;
-  while ((c = getopt_long(argc, argv, "f:r:s:e:m:M:O:p:", longopts, NULL)) != -1)
-    switch (c)
-	 {
-	 case 'r':
-	   red = atof(optarg);
-     reduced = true;
-	   break;
-	 case 's':
-	   w_start = atoi(optarg);
-	   if (w_start < 0) { cerr << "Error: Cannot start at a negative scan number.\n"; exit(1); }
-	   break;
-	 case 'e':
-	   w_end = atoi(optarg);
-	   if (w_end < 0)     { cerr << "Error: Cannot end at a negative scan number.\n"; exit(1); }
-	   if (w_end < start) { cerr << "Error: <end> cannot be smaller than <start>.\n"; exit(1); }
-	   break;
-	 case 'f': 
-	   try {
-		w_type = formatname_to_io_type(optarg);
-	   } catch (...) { // runtime_error
-		cerr << "Format " << optarg << " unknown." << endl;
-		abort();
-	   }
-	   break;
-   case 'm':
-	   maxDist = atoi(optarg);
-	   break;
-	 case 'O':
-	   if (optarg) {
-		octree = atoi(optarg);
-	   } else {
-		octree = 1;
-	   }
-	   break;
-	 case 'M':
-	   minDist = atoi(optarg);
-	   break;
-	 case 'I':
-	   if (optarg) {
-		rangeimage = atoi(optarg);
-	   } else {
-		rangeimage = 1;
-	   }
-	   break;
-	 case 'p':
-	   projection = optarg;
-	   break;
-	 case 'S':
-        scanserver = true;
-        break;
-	 case '?':
-	   usage(argv[0]);
-	   return 1;
-      default:
-	   abort ();
-      }
+    po::options_description hidden("Hidden options");
+    hidden.add_options()
+        ("input-dir", po::value<string>(&dir), "input dir");
 
-  if(!reduced) {
-    cerr << "\n*** Reduction method missed ***" << endl;
-    usage(argv[0]);
-  }
-  if (optind != argc-1) {
-    cerr << "\n*** Directory missing ***" << endl;
-    usage(argv[0]);
-  }
-  dir = argv[optind];
+    // all options
+    po::options_description all;
+    all.add(generic).add(input).add(reduction).add(hidden);
+
+    // options visible with --help
+    po::options_description cmdline_options;
+    cmdline_options.add(generic).add(reduction).add(input);
+
+    // positional argument
+    po::positional_options_description pd;
+    pd.add("input-dir", 1);
+
+    // process options
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).
+              options(all).positional(pd).run(), vm);
+    po::notify(vm);
+
+    // display help
+    if (vm.count("help")) {
+        cout << cmdline_options;
+        cout << "\nExample usage:\n" << endl;
+        exit(0);
+    }
 
 #ifndef _MSC_VER
-  if (dir[dir.length()-1] != '/') dir = dir + "/";
+    if (dir[dir.length()-1] != '/') dir = dir + "/";
 #else
-  if (dir[dir.length()-1] != '\\') dir = dir + "\\";
+    if (dir[dir.length()-1] != '\\') dir = dir + "\\";
 #endif
-
-  parseFormatFile(dir, w_type, w_start, w_end);
-
-  return 0;
 }
 
+void createdirectory(string dir)
+{
+    int success = mkdir(dir.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
+
+    if (success == 0 || errno == EEXIST) {
+        cout << "Writing to " << dir << endl;
+    } else {
+        cerr << "Creating directory " << dir << " failed" << endl;
+        exit(1);
+    }
+}
+
+cv::Mat scan2mat(Scan *source)
+{
+    DataXYZ xyz = source->get("xyz");
+    unsigned int nPoints = xyz.size();
+    cv::Mat scan(nPoints,1,CV_32FC(4));
+    scan = cv::Scalar::all(0);
+    cv::MatIterator_<cv::Vec4f> it;
+    it = scan.begin<cv::Vec4f>();
+    for(unsigned int i = 0; i < nPoints; i++){
+        (*it)[0] = xyz[i][0];
+        (*it)[1] = xyz[i][1];
+        (*it)[2] = xyz[i][2];
+        ++it;
+    }
+    return scan;
+}
+
+void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
+        int red, double scale)
+{
+    scan->setReductionParameter(red, octree);
+    DataXYZ xyz_r(scan->get("xyz reduced"));
+    unsigned int nPoints = xyz_r.size();
+
+    for(unsigned int j = 0; j < nPoints; j++) {
+        cv::Vec3f vec(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]);
+        reduced_points.push_back(vec);
+    }
+}
+
+void reduce_range(Scan *scan, vector<cv::Vec3f> &reduced_points,
+        int width, int height, fbr::projection_method ptype, double scale)
+{
+    panorama image(width, height, ptype);
+    image.createPanorama(scan2mat(scan));
+    image.getDescription();
+
+    /// Resize the range image, specify desired interpolation method
+    cv::Mat range_image_resized; // reflectance_image_resized;
+    resize(image.getMap(), range_image_resized, cv::Size(), 
+            scale, scale, cv::INTER_NEAREST);
+    for(int i = 0; i < range_image_resized.rows; i++) {
+        for(int j = 0; j < range_image_resized.cols; j++) {
+            cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
+            reduced_points.push_back(vec);
+        }
+    }
+}
+
+void reduce_interpolation(Scan *scan,
+        vector<cv::Vec3f> &reduced_points, int width, int height,
+        fbr::projection_method ptype, double scale)
+{
+    panorama image(width, height, ptype);
+    image.createPanorama(scan2mat(scan));
+    image.getDescription();
+
+    /// Resize the range image, specify desired interpolation method
+    cv::Mat range_image_resized; // reflectance_image_resized;
+    string ofilename;
+    stringstream ss;
+    resize(image.getRangeImage(), range_image_resized, cv::Size(),
+            scale, scale, cv::INTER_NEAREST);
+    for(int i = 0; i < range_image_resized.rows; i++) {
+        for(int j = 0; j < range_image_resized.cols; j++) {
+            cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
+            reduced_points.push_back(vec);
+        }
+    }
+}
+
+/*
+ * given a vector of 3d points, write them out as uos files
+ */
+void write3dfile(vector<cv::Vec3f> &points, string &dir, string id)
+{
+    ofstream outfile(dir + "/scan" + id + ".3d");
+
+    for (vector<cv::Vec3f>::iterator it=points.begin(); it < points.end(); it++) {
+        outfile << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << endl;
+    }
+
+    outfile.close();
+}
+
+// write .pose files
+// .frames files can later be generated from them using ./bin/pose2frames
+void writeposefile(string &dir, const double* rPos, const double* rPosTheta, string id)
+{
+    ofstream posefile(dir + "/scan" + id + ".pose");
+    posefile << rPos[0] << " " << rPos[1] << " " << rPos[2] << endl;
+    posefile << deg(rPosTheta[0]) << " "
+          << deg(rPosTheta[1]) << " "
+          << deg(rPosTheta[2]) << endl;
+    posefile.close();
+}
 
 /**
  * Main program for reducing scans.
@@ -281,186 +351,52 @@ int parseArgs(int argc, char **argv, string &dir, double &red,
  */
 int main(int argc, char **argv)
 {
+    int start, end;
+    bool scanserver;
+    int width, height;
+    int maxDist, minDist;
+    fbr::projection_method ptype;
+    string dir;
+    IOType iotype;
+    reduction_method rtype;
+    double scale, voxel;
+    int octree;
 
-  cout << "(c) Jacobs University Bremen, gGmbH, 2012" << endl << endl;
-  
-  if (argc <= 1) {
-    usage(argv[0]);
-  }
+    parse_options(argc, argv, start, end, scanserver, width, height, ptype,
+            dir, iotype, maxDist, minDist, rtype, scale, voxel, octree);
 
-  // parsing the command line parameters
-  // init, default values if not specified
-  string dir;
-  double red            = -1.0;
-  int    start = 0, end = -1;
-  int    maxDist        = -1;
-  int    minDist        = -1;
-  string projection     = "EQUIRECTANGULAR";
-  int    octree         = 0;
-  IOType type           = RIEGL_TXT;
-  int    rangeimage     = 0;
-  bool   scanserver     = false;
-  
-  parseArgs(argc, argv, dir, red, start, end, maxDist, minDist, projection,
-		  octree, type, rangeimage, scanserver);
+    Scan::openDirectory(scanserver, dir, iotype, start, end);
 
-  if (scanserver) {
-    try {
-	 ClientInterface::create();
-    } catch(std::runtime_error& e) {
-	 cerr << "ClientInterface could not be created: " << e.what() << endl;
-	 cerr << "Start the scanserver first." << endl;
-	 exit(-1);
-    }
-  }
-  
-  // Get Scans
-  string reddir = dir + "reduced"; 
- 
-#ifdef _MSC_VER
-  int success = mkdir(reddir.c_str());
-#else
-  int success = mkdir(reddir.c_str(), S_IRWXU|S_IRWXG|S_IRWXO);
-#endif
-  if(success == 0) { 
-    cout << "Writing scans to " << reddir << endl;
-  } else if(errno == EEXIST) {
-    cout << "Directory " << reddir << " exists already.  CONTINUE" << endl; 
-  } else {
-    cerr << "Creating directory " << reddir << " failed" << endl;
-    exit(1);
-  }
-
-  Scan::openDirectory(scanserver, dir, type, start, end);
-  if(Scan::allScans.size() == 0) {
-    cerr << "No scans found. Did you use the correct format?" << endl;
-    exit(-1);
-  }
-
-  string scanFileName;
-  string poseFileName;
-
-  /// Use the OCTREE based reduction
-  if (rangeimage == 0) {
-    cout << endl << "Reducing point cloud using octrees" << endl;
-    int scan_number = start;
-    for(std::vector<Scan*>::iterator it = Scan::allScans.begin();
-	it != Scan::allScans.end(); 
-	++it, ++scan_number) {
-      Scan* scan = *it;
-      const double* rPos = scan->get_rPos();
-      const double* rPosTheta = scan->get_rPosTheta();
-      
-      scan->setRangeFilter(maxDist, minDist);
-      scan->setReductionParameter(red, octree);
-      // get reduced points
-      DataXYZ xyz_r(scan->get("xyz reduced"));
-      unsigned int nPoints = xyz_r.size();
-
-      const char* id = scan->getIdentifier();
-      cout << "Writing Scan No. " << id;
-      cout << " with " << xyz_r.size() << " points" << endl; 
-      scanFileName = reddir + "/scan" + id + ".3d";
-      poseFileName = reddir  + "/scan" + id + ".pose";
-
-      ofstream redptsout(scanFileName.c_str());
-      for(unsigned int j = 0; j < nPoints; j++) {
-        redptsout << xyz_r[j][0] << " " 
-		  << xyz_r[j][1] << " " 
-		  << xyz_r[j][2] << endl;
-      }
-      redptsout.close();
-      redptsout.clear();
-
-      ofstream posout(poseFileName.c_str());
-      posout << rPos[0] << " " 
-             << rPos[1] << " " 
-             << rPos[2] << endl   
-             << deg(rPosTheta[0]) << " " 
-             << deg(rPosTheta[1]) << " " 
-             << deg(rPosTheta[2]) << endl;  
-      
-      posout.close();
-      posout.clear();
-      if (scanserver) {
-        scan->clear("xyz reduced");
-      }
-    }
-  } else { /// use the RESIZE based reduction
-    cout << endl << "Reducing point cloud by rescaling the range image" << endl;
-
-    Scan::openDirectory(false, dir, type, start, end);
-    if (Scan::allScans.size() <= 0) {
-      cerr << "No scans found!" << endl;
-      exit(-1);
+    if(Scan::allScans.size() == 0) {
+        cerr << "No scans found. Did you use the correct format?" << endl;
+        exit(-1);
     }
 
-    for (int scan_number = start; scan_number <= end; scan_number++) {
+    for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
+        Scan* scan = *it;
 
-      Scan* scan = Scan::allScans[scan_number];
-      scan->setRangeFilter(maxDist, minDist);
-      const double* rPos = scan->get_rPos();
-      const double* rPosTheta = scan->get_rPosTheta();
-      
-      scanFileName = dir + "reduced/scan" + to_string(scan_number, 3) + ".3d";
-      poseFileName = dir + "reduced/scan" + to_string(scan_number, 3) + ".pose";
-      // Create a panorama. The iMap inside does all the tricks for us.
-      scan_cv sScan(dir, scan_number, type);
-      sScan.convertScanToMat();
+        scan->setRangeFilter(maxDist, minDist);
 
-      /// Project point cloud using the selected projection method
-      panorama image(IMAGE_WIDTH, IMAGE_HEIGHT, strToPMethod(projection));
-      image.createPanorama(sScan.getMatScan());
-      image.getDescription();
-      
-      /// Resize the range image, specify desired interpolation method
-      double scale = 1.0/red;
-      cv::Mat range_image_resized; // reflectance_image_resized;
-      string ofilename;
-      stringstream ss;
-      ss << setw(3) << setfill('0') << (scan_number);
-      ofilename = reddir + "/scan" + ss.str() + ".3d";
-      if (rangeimage == 1) {
-	resize(image.getRangeImage(), range_image_resized, cv::Size(), 
-	       scale, scale, cv::INTER_NEAREST);
-	// Recover point cloud from image and write scan to file
-	stringstream ss;
-	ss << setw(3) << setfill('0') << (scan_number); 
-	image.recoverPointCloud(range_image_resized, ofilename);
-      } else {
-	resize(image.getMap(), range_image_resized, cv::Size(), 
-	       scale, scale, cv::INTER_NEAREST);
-	ofstream redptsout(ofilename.c_str());
-	// Convert back to 3D.
-	for(int i = 0; i < range_image_resized.rows; i++) {
-	  for(int j = 0; j < range_image_resized.cols; j++) {
-	    cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
-	    double x = vec[0];
-	    double y = vec[1];
-	    double z = vec[2];
-	    redptsout << x << " " << y << " " << z << endl;
-	  }
-	}
-      }
+        vector<cv::Vec3f> reduced_points;
 
-      ofstream posout(poseFileName.c_str());
-      posout << rPos[0] << " " 
-             << rPos[1] << " " 
-             << rPos[2] << endl   
-             << deg(rPosTheta[0]) << " " 
-             << deg(rPosTheta[1]) << " " 
-             << deg(rPosTheta[2]) << endl;  
-      posout.clear();
-      posout.close();
+        switch (rtype) {
+            case OCTREE:
+                reduce_octree(scan, reduced_points, voxel, octree, scale);
+                break;
+            case RANGE:
+                reduce_range(scan, reduced_points, width, height, ptype, scale);
+                break;
+            case INTERPOLATE:
+                reduce_interpolation(scan, reduced_points, width, height, ptype, scale);
+                break;
+            default:
+                break;
+        }
+
+        string reddir = dir + "reduced";
+        createdirectory(reddir);
+
+        write3dfile(reduced_points, reddir, scan->getIdentifier());
+        writeposefile(reddir, scan->get_rPos(), scan->get_rPosTheta(), scan->getIdentifier());
     }
-  }
-
-  cout << endl << endl;
-  cout << "Normal program end." << endl << endl;
-
-  if (scanserver) {  
-    Scan::closeDirectory();
-    ClientInterface::destroy();
-  }
 }
-
