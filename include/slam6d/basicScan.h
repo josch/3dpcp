@@ -10,6 +10,8 @@
 
 class BasicScan : public Scan {
 public:
+  BasicScan() {};
+
   static void openDirectory(const std::string& path, IOType type, int start, int end);
   static void closeDirectory();
 /*
@@ -29,11 +31,13 @@ public:
   virtual void get(unsigned int types);
   virtual DataPointer create(const std::string& identifier, unsigned int size);
   virtual void clear(const std::string& identifier);
-
   virtual unsigned int readFrames();
   virtual void saveFrames();
   virtual unsigned int getFrameCount();
   virtual void getFrame(unsigned int i, const double*& pose_matrix, AlgoType& type);
+  
+  //! Constructor for creation of Scans without openDirectory
+  BasicScan(double * rPos, double * rPosTheta, std::vector<double*> points);
 
 protected:
   virtual void createSearchTreePrivate();

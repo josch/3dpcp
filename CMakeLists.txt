@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.6.1)
+cmake_minimum_required (VERSION 2.8.2)
 SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/3rdparty/CMakeModules" ${CMAKE_MODULE_PATH})
 project (Slam6D)
 
@@ -254,7 +254,7 @@ ENDIF(OPENMP_FOUND)
 
 IF(OPENMP_FOUND AND WITH_OPENMP)
   MESSAGE(STATUS "With OpenMP ")
-  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAX_OPENMP_NUM_THREADS=${PROCESSOR_COUNT} -DOPENMP_NUM_THREADS=${NUMBER_OF_CPUS} ${OpenMP_CXX_FLAGS} -DOPENMP")
+  SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAX_OPENMP_NUM_THREADS=${NUMBER_OF_CPUS} -DOPENMP_NUM_THREADS=${NUMBER_OF_CPUS} ${OpenMP_CXX_FLAGS} -DOPENMP")
 ELSE(OPENMP_FOUND AND WITH_OPENMP)
   MESSAGE(STATUS "Without OpenMP")
   SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMAX_OPENMP_NUM_THREADS=1 -DOPENMP_NUM_THREADS=1")
@@ -395,7 +395,7 @@ add_subdirectory(src/model)
 IF(EXPORT_SHARED_LIBS)
 ## Compiling a shared library containing all of the project
 add_library(slam SHARED src/slam6d/icp6D.cc)
-target_link_libraries(slam scanlib_s ANN_s sparse_s newmat_s)
+target_link_libraries(slam scan_s ANN_s sparse_s newmat_s show_s fbr_s)
 ENDIF(EXPORT_SHARED_LIBS)
 
 MESSAGE (STATUS "Build environment is set up!")
