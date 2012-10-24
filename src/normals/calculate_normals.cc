@@ -371,6 +371,57 @@ void computeKNearestNeighbors(const vector<Point>& points,
 }
 
 /**
+ * Compute neighbors using kNN search
+ * @param point - input point with neighbors
+ * @param new_point - output point with new neighbors
+ * @param knn - k constant in kNN search
+ * @param eps - parameter required by the ANN library in kNN search
+ */
+void computeKNearestNeighbors(const PointNeighbor& point,
+        PointNeighbor& new_point, int knn, 
+        double eps=1.0) 
+{
+    /// allocate memory for all neighbors of point plus the point itself
+    ANNpointArray point_array = annAllocPts(point.neighbors.size()+1, 3);
+    for (size_t i = 0; i < point.neighbors.size(); ++i) {
+        point_array[i] = new ANNcoord[3];
+        point_array[i][0] = point.neighbors[i].x;
+        point_array[i][1] = point.neighbors[i].y;
+        point_array[i][2] = point.neighbors[i].z;
+    }
+    int last = point.neighbors.size();
+    point_array[last] = new ANNcoord[3];
+    point_array[last][0] = point.point.x;
+    point_array[last][1] = point.point.y;
+    point_array[last][2] = point.point.z;
+
+    ANNkd_tree t(point_array, point.neighbors.size()+1, 3);
+    ANNidxArray n;
+    ANNdistArray d;
+
+    /// regular kNN search, allocate memory for knn
+    n = new ANNidx[knn];
+    d = new ANNdist[knn];
+
+    vector<Point> new_neighbors;
+    /// last point in the array is the current point
+    ANNpoint p = point_array[point.neighbors.size()];
+
+    t.annkSearch(p, knn, n, d, eps);
+
+    for (int j = 0; j < knn; ++j) {
+        if ( n[j] != (int) point.neighbors.size() )
+            new_neighbors.push_back(point.neighbors[n[j]]);
+    }
+
+    new_point.point = point.point;
+    new_point.neighbors = new_neighbors;
+
+    delete[] n;
+    delete[] d;
+}
+
+/**
  * Compute neighbors using panorama images
  * @param fPanorama - input panorama image created from the current scan
  * @param points_neighbors - output set of points with corresponding neighbors
