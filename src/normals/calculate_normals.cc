@@ -92,7 +92,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
         int &maxDist, int &minDist, normal_method &normalMethod, int &knn,
         int &kmin, int &kmax, double& alpha, int &width, int &height,
-        bool &flipnormals)
+        bool &flipnormals, double &factor)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -139,6 +139,8 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "height of panorama")
         ("flipnormals,F", po::bool_switch(&flipnormals),
          "flip orientation of normals towards scan pose")
+        ("factor,c", po::value<double>(&factor),
+         "factor for SRI computation")
         ;
 
     po::options_description hidden("Hidden options");
@@ -175,6 +177,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_conflict(vm, KNN_PCA, "alpha");
     normal_option_conflict(vm, KNN_PCA, "width");
     normal_option_conflict(vm, KNN_PCA, "height");
+    normal_option_conflict(vm, KNN_PCA, "factor");
 
     normal_option_conflict(vm, AKNN_PCA, "knn");
     normal_option_dependency(vm, AKNN_PCA, "kmin");
@@ -182,6 +185,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_dependency(vm, AKNN_PCA, "alpha");
     normal_option_conflict(vm, AKNN_PCA, "width");
     normal_option_conflict(vm, AKNN_PCA, "height");
+    normal_option_conflict(vm, AKNN_PCA, "factor");
 
     normal_option_conflict(vm, PANO_PCA, "knn");
     normal_option_conflict(vm, PANO_PCA, "kmin");
@@ -189,13 +193,15 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_conflict(vm, PANO_PCA, "alpha");
     normal_option_dependency(vm, PANO_PCA, "width");
     normal_option_dependency(vm, PANO_PCA, "height");
+    normal_option_conflict(vm, PANO_PCA, "factor");
 
     normal_option_conflict(vm, PANO_SRI, "knn");
     normal_option_conflict(vm, PANO_SRI, "kmin");
     normal_option_conflict(vm, PANO_SRI, "kmax");
     normal_option_conflict(vm, PANO_SRI, "alpha");
-    normal_option_dependency(vm, PANO_SRI, "width");
-    normal_option_dependency(vm, PANO_SRI, "height");
+    normal_option_conflict(vm, PANO_SRI, "width");
+    normal_option_conflict(vm, PANO_SRI, "height");
+    normal_option_dependency(vm, PANO_SRI, "factor");
 
     // add trailing slash to directory if not present yet
     if (dir[dir.length()-1] != '/') dir = dir + "/";
@@ -593,10 +599,11 @@ int main(int argc, char **argv)
     double alpha;
     int width, height;
     bool flipnormals;
+    double factor;
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
             minDist, normalMethod, knn, kmin, kmax, alpha, width, height,
-            flipnormals);
+            flipnormals, factor);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -642,11 +649,7 @@ int main(int argc, char **argv)
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_SRI:
-                /*
-                computePanoramaNeighbors(scan, points_neighbors, width, height);
-                computeSRI(scan, points_neighbors, normals, flipnormals, width, height);
-                */
-                computeSRInew(scan, 1, points, normals);
+                computeSRInew(scan, factor, points, normals);
                 break;
             default:
                 break;
