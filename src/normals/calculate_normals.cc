@@ -507,9 +507,9 @@ void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
         int i = current_point.range_image_row;
         int j = current_point.range_image_col;
         double kart[3], polar[3];
-        kart[0] = current_point.point.x;
-        kart[1] = current_point.point.y;
-        kart[2] = current_point.point.z;
+        kart[0] = current_point.point.z/100;
+        kart[1] = current_point.point.x/-100;
+        kart[2] = current_point.point.y/100;
         toPolar(kart, polar);
         double rho = polar[2];
         double phi = polar[1] * 180/M_PI;
