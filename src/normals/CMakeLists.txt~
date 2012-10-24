@@ -1,7 +1,0 @@
-IF(WITH_NORMALS)
-  FIND_PACKAGE(OpenCV REQUIRED)
-
-  add_executable(calculateNormals calculate_normals.cc ../slam6d/fbr/fbr_global.cc ../slam6d/fbr/panorama.cc)
-
-  target_link_libraries(calculateNormals scan ANN newmat fbr_panorama fbr_cv_io ${Boost_LIBRARIES} ${OpenCV_LIBS})
-ENDIF(WITH_NORMALS)
