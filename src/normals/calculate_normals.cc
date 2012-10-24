@@ -517,10 +517,8 @@ void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
         double n[3];
 
         // if no point return 0 normal
-        if (rho < 10) {
-            for (int i = 0; i < 3; i++)
-                n[i] = 0;
-            normals.push_back( Point(n[0], n[1], n[2]) );
+        if (rho < 0.001) {
+            normals.push_back( Point(0.0, 0.0, 0.0) );
             continue;
         }
 
