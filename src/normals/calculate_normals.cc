@@ -488,15 +488,15 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
     }
 }
 
-void computeSRInew(Scan* scan, int factor, vector<Point>& points, vector<Point>& normals)
+void computeSRI(int factor, vector<Point>& points, vector<Point>& normals)
 {
     SRI *sri2 = new SRI(0, factor);
 
-    DataXYZ xyz = scan->get("xyz");
-    unsigned int nPoints = xyz.size();
-    for(unsigned int i = 0; i < nPoints; i++){
-        sri2->addPoint(xyz[i][0], xyz[i][1], xyz[i][2]);
+    for (int i = 0; i < points.size(); i++) {
+        sri2->addPoint(points[i].x, points[i].y, points[i].z);
     }
+
+    points.clear();
 
     for (unsigned int i = 0; i < sri2->points.size(); i++) {
         double rgbN[3], x, y, z;
@@ -556,26 +556,27 @@ int main(int argc, char **argv)
         vector<Point> normals;
         vector<Point> points;
 
+        scan2points(scan, points);
+
         switch (normalMethod) {
             case KNN_PCA:
-                scan2points(scan, points);
                 computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case AKNN_PCA:
-                scan2points(scan, points);
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_PCA:
-                scan2points(scan, points);
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_SRI:
-                computeSRInew(scan, factor, points, normals);
+                computeSRI(factor, points, normals);
                 break;
             default:
+                cerr << "unknown normal method" << endl;
+                return 1;
                 break;
         }
 
