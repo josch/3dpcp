@@ -187,7 +187,8 @@ void parse_options(int argc, char **argv, int &start, int &end,
     normal_option_conflict(vm, AKNN_PCA, "height");
     normal_option_conflict(vm, AKNN_PCA, "factor");
 
-    normal_option_conflict(vm, PANO_PCA, "knn");
+    //normal_option_conflict(vm, PANO_PCA, "knn");
+    normal_option_dependency(vm, KNN_PCA, "knn");
     normal_option_conflict(vm, PANO_PCA, "kmin");
     normal_option_conflict(vm, PANO_PCA, "kmax");
     normal_option_conflict(vm, PANO_PCA, "alpha");
@@ -417,6 +418,7 @@ void computeKNearestNeighbors(const PointNeighbor& point,
     ANNpoint p = point_array[point.neighbors.size()];
 
     t.annkSearch(p, knn, n, d, eps);
+    new_neighbors.push_back(point.point);
 
     for (int j = 0; j < knn; ++j) {
         if ( n[j] != (int) point.neighbors.size() )
@@ -436,7 +438,7 @@ void computeKNearestNeighbors(const PointNeighbor& point,
  * @param points_neighbors - output set of points with corresponding neighbors
  */
 void computePanoramaNeighbors(Scan* scan,
-        vector<PointNeighbor>& points_neighbors, int width, int height)
+        vector<PointNeighbor>& points_neighbors, int width, int height, int knn)
 {
     cv::Mat scan_cv;
     scan2mat(scan, scan_cv);
@@ -449,7 +451,7 @@ void computePanoramaNeighbors(Scan* scan,
             vector<cv::Vec3f> points_panorama = extended_map[row][col];
             /// if no points found, skip pixel
             if (points_panorama.size() < 1) continue;
-            /// foreach point from panorama consider all the rest as its neighbors
+            /// foreach point from panorama consider all points in the bucket as its neighbors
             for (size_t point_idx = 0; point_idx < points_panorama.size(); ++point_idx) {
                 Point point;
                 point.x = points_panorama[point_idx][0];
@@ -460,7 +462,7 @@ void computePanoramaNeighbors(Scan* scan,
                     if (i != point_idx)
                         neighbors.push_back(Point (points_panorama[i][0], points_panorama[i][1], points_panorama[i][2]) );
                 }
-                /// compute neighbors by examining adjacent pixels
+                /// add neighbors from adjacent pixels and buckets
                 for (int i = -1; i <= 1; ++i) {
                     for (int j = -1; j <= 1; ++j) {
                         if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
@@ -473,19 +475,15 @@ void computePanoramaNeighbors(Scan* scan,
                         }
                     }
                 }
+                /// filter the point by kNN search
                 PointNeighbor current_point(point, neighbors);
-                // add neighbors from range image
-                for (int i = -1; i <= 1; ++i) {
-                    for (int j = -1; j <= 1; ++j) {
-                        if (!(i==0 && j==0) && !(row+i < 0 || col+j < 0)
-                                && !(row+i >= height || col+j >= width)) {
-                            current_point.range_neighbors[1+i][1+j] = img.at<float>(row+i,col+j);
-                        }
-                    }
+                if (knn > 0) {
+                    PointNeighbor filtered_point;
+                    computeKNearestNeighbors(current_point, filtered_point, knn);
+                    points_neighbors.push_back(filtered_point);
+                } else {
+                    points_neighbors.push_back(current_point);
                 }
-                current_point.range_image_row = row;
-                current_point.range_image_col = col;
-                points_neighbors.push_back(current_point);
             }
         }
     }
@@ -543,7 +541,7 @@ void computeSRI(int factor, vector<Point>& points, vector<Point>& normals)
 {
     SRI *sri2 = new SRI(0, factor);
 
-    for (int i = 0; i < points.size(); i++) {
+    for (size_t i = 0; i < points.size(); i++) {
         sri2->addPoint(points[i].x, points[i].y, points[i].z);
     }
 
@@ -619,7 +617,7 @@ int main(int argc, char **argv)
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_PCA:
-                computePanoramaNeighbors(scan, points_neighbors, width, height);
+                computePanoramaNeighbors(scan, points_neighbors, width, height, knn);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_SRI:
