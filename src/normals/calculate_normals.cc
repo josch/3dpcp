@@ -488,84 +488,9 @@ void computePCA(const Scan* scan, const vector<PointNeighbor>& points,
     }
 }
 
-void sobel(PointNeighbor& current_point, double& dRdTheta, double& dRdPhi)
-{
-  dRdPhi += 10*current_point.range_neighbors[0][1];
-  dRdPhi += 3 *current_point.range_neighbors[0][0];
-  dRdPhi += 3 *current_point.range_neighbors[0][2];
-  dRdPhi -= 10*current_point.range_neighbors[2][1];
-  dRdPhi -= 3 *current_point.range_neighbors[2][0];
-  dRdPhi -= 3 *current_point.range_neighbors[2][2];
-    
-  dRdTheta += 10*current_point.range_neighbors[1][0];
-  dRdTheta += 3 *current_point.range_neighbors[0][0];
-  dRdTheta += 3 *current_point.range_neighbors[2][0];
-  dRdTheta -= 10*current_point.range_neighbors[1][2];
-  dRdTheta -= 3 *current_point.range_neighbors[0][2];
-  dRdTheta -= 3 *current_point.range_neighbors[2][2];
-}
-
-void computeSRI(const Scan* scan, const vector<PointNeighbor>& points,
-        vector<Point>& normals, bool flipnormals, int width, int height)
-{
-    float factorx = width/360.0;
-    float factory = height/100.0;
-    float deg2rad = M_PI/180;
-    for(size_t pidx = 0; pidx < points.size(); ++pidx) {
-        PointNeighbor current_point = points[pidx];
-        int i = current_point.range_image_row;
-        int j = current_point.range_image_col;
-        double kart[3], polar[3];
-        kart[0] = current_point.point.z/100;
-        kart[1] = current_point.point.x/-100;
-        kart[2] = current_point.point.y/100;
-        toPolar(kart, polar);
-        double rho = polar[2];
-        double phi = polar[1] * 180/M_PI;
-        double theta = polar[0] * 180/M_PI;
-        double n[3];
-
-        // if no point return 0 normal
-        if (rho < 0.001) {
-            normals.push_back( Point(0.0, 0.0, 0.0) );
-            continue;
-        }
-
-        // partial derivative values
-        double dRdTheta = 0.0;
-        double dRdPhi = 0.0;
-
-        if (i != 0 && i != height-1 && j != 0 && j != width-1)
-            sobel(current_point, dRdTheta, dRdPhi);
-
-        // add more weight to derivatives
-        dRdTheta *= factory*2;
-        dRdPhi *= factorx*2;
-
-        phi += (30.0*deg2rad);
-
-        n[0] = cos(theta) * sin(phi) - sin(theta) * dRdTheta / rho / sin(phi) + 
-            cos(theta) * cos(phi) * dRdPhi / rho;
-
-        n[1] = sin(theta) * sin(phi) + cos(theta) * dRdTheta / rho / sin(phi) + 
-            sin(theta) * cos(phi) * dRdPhi / rho;
-
-        n[2] =  cos(phi) - sin(phi) * dRdPhi / rho;
-
-        n[2] = -n[2];
-
-        double m = sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-        n[0] /= m; n[1] /= m; n[2] /= m;
-
-        normals.push_back( Point(n[0], n[1], n[2]) );
-    }
-}
-
 void computeSRInew(Scan* scan, int factor, vector<Point>& points, vector<Point>& normals)
 {
     SRI *sri2 = new SRI(0, factor);
-    points.clear();
-    cout << points.size() << endl;
 
     DataXYZ xyz = scan->get("xyz");
     unsigned int nPoints = xyz.size();
@@ -574,16 +499,22 @@ void computeSRInew(Scan* scan, int factor, vector<Point>& points, vector<Point>&
     }
 
     for (unsigned int i = 0; i < sri2->points.size(); i++) {
-        double rgbN[3];
+        double rgbN[3], x, y, z;
         PointN* p = sri2->points[i];
-        double x, y, z;
         p->getCartesian(x, y, z);
         sri2->getNormalSRI(p, rgbN);
         normals.push_back(Point(rgbN[0], rgbN[1], rgbN[2]));
-        points.push_back(Point(x, y, z));
+        points.push_back(Point(x, z, y));
     }
-    cout << points.size() << endl;
-    cout << normals.size() << endl;
+}
+
+void scan2points(Scan* scan, vector<Point> &points)
+{
+    DataXYZ xyz = scan->get("xyz");
+    unsigned int nPoints = xyz.size();
+    for(unsigned int i = 0; i < nPoints; ++i) {
+        points.push_back(Point(xyz[i][0], xyz[i][1], xyz[i][2]));
+    }
 }
 
 int main(int argc, char **argv)
@@ -617,34 +548,27 @@ int main(int argc, char **argv)
 
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
         Scan* scan = *it;
-        vector<Point> points;
 
         // apply optional filtering
         scan->setRangeFilter(maxDist, minDist);
 
-        DataXYZ xyz = scan->get("xyz");
-        unsigned int nPoints = xyz.size();
-        for(unsigned int i = 0; i < nPoints; ++i) {
-            float x, y, z;
-            x = xyz[i][0];
-            y = xyz[i][1];
-            z = xyz[i][2];
-            points.push_back(Point(x, y, z));
-        }
-
         vector<PointNeighbor> points_neighbors;
         vector<Point> normals;
+        vector<Point> points;
 
         switch (normalMethod) {
             case KNN_PCA:
+                scan2points(scan, points);
                 computeKNearestNeighbors(points, points_neighbors, knn);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case AKNN_PCA:
+                scan2points(scan, points);
                 computeKNearestNeighbors(points, points_neighbors, kmin, kmax, alpha);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
             case PANO_PCA:
+                scan2points(scan, points);
                 computePanoramaNeighbors(scan, points_neighbors, width, height);
                 computePCA(scan, points_neighbors, normals, flipnormals);
                 break;
