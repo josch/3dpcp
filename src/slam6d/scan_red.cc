@@ -171,7 +171,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, int &width, int &height,
         fbr::projection_method &ptype, string &dir, IOType &iotype,
         int &maxDist, int &minDist, reduction_method &rtype, double &scale,
-        double &voxel, int &octree)
+        double &voxel, int &octree, bool &reflectance)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -212,17 +212,22 @@ void parse_options(int argc, char **argv, int &start, int &end,
         ("height,h", po::value<int>(&height),
          "height of panorama");
 
+    po::options_description output("Output options");
+    output.add_options()
+        ("reflectance,R", po::bool_switch(&reflectance),
+         "Use reflectance when reducing points and save scan files in UOSR format");
+
     po::options_description hidden("Hidden options");
     hidden.add_options()
         ("input-dir", po::value<string>(&dir), "input dir");
 
     // all options
     po::options_description all;
-    all.add(generic).add(input).add(reduction).add(hidden);
+    all.add(generic).add(input).add(reduction).add(output).add(hidden);
 
     // options visible with --help
     po::options_description cmdline_options;
-    cmdline_options.add(generic).add(reduction).add(input);
+    cmdline_options.add(generic).add(input).add(reduction).add(output);
 
     // positional argument
     po::positional_options_description pd;
@@ -289,6 +294,7 @@ void createdirectory(string dir)
 void scan2mat(Scan *source, cv::Mat &mat)
 {
     DataXYZ xyz = source->get("xyz");
+    DataReflectance xyz_reflectance = source->get("reflectance");
     unsigned int nPoints = xyz.size();
     mat.create(nPoints,1,CV_32FC(4));
     mat = cv::Scalar::all(0);
@@ -297,24 +303,25 @@ void scan2mat(Scan *source, cv::Mat &mat)
         (*it)[0] = xyz[i][0];
         (*it)[1] = xyz[i][1];
         (*it)[2] = xyz[i][2];
+        (*it)[3] = xyz_reflectance[i];
         ++it;
     }
 }
 
-void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
-        int red)
+void reduce_octree(Scan *scan, vector<cv::Vec4f> &reduced_points, int octree,
+        int red, bool reflectance)
 {
     scan->setReductionParameter(red, octree);
     DataXYZ xyz_r(scan->get("xyz reduced"));
 
-    cout << red << " " << octree  << " " << xyz_r.size() << endl;
     for(unsigned int j = 0; j < xyz_r.size(); j++) {
-        reduced_points.push_back(cv::Vec3d(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]));
+        reduced_points.push_back(cv::Vec4f(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2], 0.0));
     }
 }
 
-void reduce_range(Scan *scan, string reddir, string id, int width, int height,
-        fbr::projection_method ptype, double scale)
+void reduce_range(Scan *scan, vector<cv::Vec4f> &reduced_points, int width,
+        int height, fbr::projection_method ptype, double scale,
+        bool reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -322,18 +329,23 @@ void reduce_range(Scan *scan, string reddir, string id, int width, int height,
     image.createPanorama(mat);
     image.getDescription();
 
-    /// Resize the range image, specify desired interpolation method
-    cv::Mat range_image_resized; // reflectance_image_resized;
+    cv::Mat range_image_resized;
+    cv::Mat reflectance_image_resized;
     resize(image.getRangeImage(), range_image_resized, cv::Size(),
             scale, scale, cv::INTER_NEAREST);
-    // why does the panorama class have functionality to write a UOS file?
-    // XXX: change recoverPointCloud to just return a point cloud
-    image.recoverPointCloud(range_image_resized, reddir + "/scan" + id + ".3d");
+    if (reflectance) {
+        resize(image.getReflectanceImage(), reflectance_image_resized,
+                cv::Size(), scale, scale, cv::INTER_NEAREST);
+    } else {
+        reflectance_image_resized.create(range_image_resized.size(), CV_8U);
+        reflectance_image_resized = cv::Scalar::all(0);
+    }
+    image.recoverPointCloud(range_image_resized, reflectance_image_resized, reduced_points);
 }
 
-void reduce_interpolation(Scan *scan,
-        vector<cv::Vec3f> &reduced_points, int width, int height,
-        fbr::projection_method ptype, double scale)
+void reduce_interpolation(Scan *scan, vector<cv::Vec4f> &reduced_points,
+        int width, int height, fbr::projection_method ptype, double scale,
+        bool reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -341,14 +353,24 @@ void reduce_interpolation(Scan *scan,
     image.createPanorama(mat);
     image.getDescription();
 
-    /// Resize the range image, specify desired interpolation method
-    cv::Mat range_image_resized; // reflectance_image_resized;
-    resize(image.getMap(), range_image_resized, cv::Size(), 
+    cv::Mat range_image_resized;
+    cv::Mat reflectance_image_resized;
+    resize(image.getMap(), range_image_resized, cv::Size(),
             scale, scale, cv::INTER_NEAREST);
+    if (reflectance) {
+        resize(image.getReflectanceImage(), reflectance_image_resized,
+                cv::Size(), scale, scale, cv::INTER_NEAREST);
+    }
     for(int i = 0; i < range_image_resized.rows; i++) {
         for(int j = 0; j < range_image_resized.cols; j++) {
             cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
-            reduced_points.push_back(vec);
+            if (reflectance) {
+                reduced_points.push_back(cv::Vec4f(
+                            vec[0], vec[1], vec[2],
+                            reflectance_image_resized.at<uchar>(i, j)/255.0));
+            } else {
+                reduced_points.push_back(cv::Vec4f(vec[0], vec[1], vec[2], 0.0));
+            }
         }
     }
 }
@@ -356,12 +378,26 @@ void reduce_interpolation(Scan *scan,
 /*
  * given a vector of 3d points, write them out as uos files
  */
-void write3dfile(vector<cv::Vec3f> &points, string &dir, string id)
+void write_uos(vector<cv::Vec4f> &points, string &dir, string id)
 {
     ofstream outfile(dir + "/scan" + id + ".3d");
 
-    for (vector<cv::Vec3f>::iterator it=points.begin(); it < points.end(); it++) {
+    for (vector<cv::Vec4f>::iterator it=points.begin(); it < points.end(); it++) {
         outfile << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << endl;
+    }
+
+    outfile.close();
+}
+
+/*
+ * given a vector of 3d points, write them out as uosr files
+ */
+void write_uosr(vector<cv::Vec4f> &points, string &dir, string id)
+{
+    ofstream outfile(dir + "/scan" + id + ".3d");
+
+    for (vector<cv::Vec4f>::iterator it=points.begin(); it < points.end(); it++) {
+        outfile << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << " " << (*it)[3] << endl;
     }
 
     outfile.close();
@@ -399,9 +435,11 @@ int main(int argc, char **argv)
     reduction_method rtype;
     double scale, voxel;
     int octree;
+    bool reflectance;
 
     parse_options(argc, argv, start, end, scanserver, width, height, ptype,
-            dir, iotype, maxDist, minDist, rtype, scale, voxel, octree);
+            dir, iotype, maxDist, minDist, rtype, scale, voxel, octree,
+            reflectance);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -415,22 +453,20 @@ int main(int argc, char **argv)
 
         scan->setRangeFilter(maxDist, minDist);
 
-        vector<cv::Vec3f> reduced_points;
+        vector<cv::Vec4f> reduced_points;
 
         string reddir = dir + "reduced";
         createdirectory(reddir);
 
         switch (rtype) {
             case OCTREE:
-                reduce_octree(scan, reduced_points, octree, voxel);
-                write3dfile(reduced_points, reddir, scan->getIdentifier());
+                reduce_octree(scan, reduced_points, octree, voxel, reflectance);
                 break;
             case RANGE:
-                reduce_range(scan, reddir, scan->getIdentifier(), width, height, ptype, scale);
+                reduce_range(scan, reduced_points, width, height, ptype, scale, reflectance);
                 break;
             case INTERPOLATE:
-                reduce_interpolation(scan, reduced_points, width, height, ptype, scale);
-                write3dfile(reduced_points, reddir, scan->getIdentifier());
+                reduce_interpolation(scan, reduced_points, width, height, ptype, scale, reflectance);
                 break;
             default:
                 cerr << "unknown method" << endl;
@@ -438,6 +474,10 @@ int main(int argc, char **argv)
                 break;
         }
 
+        if (reflectance)
+            write_uosr(reduced_points, reddir, scan->getIdentifier());
+        else
+            write_uos(reduced_points, reddir, scan->getIdentifier());
         writeposefile(reddir, scan->get_rPos(), scan->get_rPosTheta(), scan->getIdentifier());
     }
 }
