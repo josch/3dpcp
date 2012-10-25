@@ -266,7 +266,7 @@ void Scan::calcReducedPoints()
     // copy the points
     if (reduction_pointtype.hasReflectance()) {   
       DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*4*xyz_reflectance.size()));
-      for(unsigned int i = 0; i < xyz.size(); ++i) 
+      for(unsigned int i = 0; i < xyz_reflectance.size(); ++i) 
         for(unsigned int j = 0; j < 4; ++j) 
           xyz_reduced[i][j] = xyz_reflectance[i][j];
     } else {
@@ -303,10 +303,11 @@ void Scan::calcReducedPoints()
     if (reduction_pointtype.hasReflectance()) {   
       DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*4*size));
       for(unsigned int i = 0; i < size; ++i) {
-        for(unsigned int j = 0; j < 4; ++j) 
+        for(unsigned int j = 0; j < 4; ++j) {
           xyz_reduced[i][j] = center[i][j];
-
-        cout << xyz_reduced[i][0] << " " << xyz_reduced[i][1] << " " << xyz_reduced[i][2] << " " << xyz_reduced[i][3] << endl;
+          cout << xyz_reduced[i][j] << " ";
+        }
+        cout << endl;
       }
     } else {
       DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*3*size));
