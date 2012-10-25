@@ -171,7 +171,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, int &width, int &height,
         fbr::projection_method &ptype, string &dir, IOType &iotype,
         int &maxDist, int &minDist, reduction_method &rtype, double &scale,
-        double &voxel, int &octree)
+        double &voxel, int &octree, bool &use_reflectance)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -193,7 +193,9 @@ void parse_options(int argc, char **argv, int &start, int &end,
         ("min,m", po::value<int>(&minDist)->default_value(-1),
          "neglegt all data points with a distance smaller than <arg> 'units")
         ("scanserver,S", po::bool_switch(&scanserver),
-         "Use the scanserver as an input method and handling of scan data");
+         "Use the scanserver as an input method and handling of scan data")
+        ("reflectance,R", po::bool_switch(&use_reflectance),
+         "Use reflectance when reducing points and save scan files in UOSR format");
 
     po::options_description reduction("Reduction options");
     reduction.add_options()
@@ -302,11 +304,15 @@ void scan2mat(Scan *source, cv::Mat &mat)
 }
 
 void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
-        int red)
+        int red, bool use_reflectance)
 {
-    unsigned int types = PointType::USE_REFLECTANCE;
-    PointType pointtype(types);
-    scan->setReductionParameter(red, octree, pointtype);
+    if (use_reflectance) {
+      unsigned int types = PointType::USE_REFLECTANCE;
+      PointType pointtype(types);
+      scan->setReductionParameter(red, octree, pointtype);
+    } else {
+      scan->setReductionParameter(red, octree);
+    }
     DataXYZ xyz_r(scan->get("xyz reduced"));
 
     cout << red << " " << octree  << " " << xyz_r.size() << " " << endl;
@@ -316,7 +322,7 @@ void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
 }
 
 void reduce_range(Scan *scan, string reddir, string id, int width, int height,
-        fbr::projection_method ptype, double scale)
+        fbr::projection_method ptype, double scale, bool use_reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -335,7 +341,7 @@ void reduce_range(Scan *scan, string reddir, string id, int width, int height,
 
 void reduce_interpolation(Scan *scan,
         vector<cv::Vec3f> &reduced_points, int width, int height,
-        fbr::projection_method ptype, double scale)
+        fbr::projection_method ptype, double scale, bool use_reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -401,9 +407,10 @@ int main(int argc, char **argv)
     reduction_method rtype;
     double scale, voxel;
     int octree;
+    bool use_reflectance;
 
     parse_options(argc, argv, start, end, scanserver, width, height, ptype,
-            dir, iotype, maxDist, minDist, rtype, scale, voxel, octree);
+            dir, iotype, maxDist, minDist, rtype, scale, voxel, octree, use_reflectance);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -424,14 +431,14 @@ int main(int argc, char **argv)
 
         switch (rtype) {
             case OCTREE:
-                reduce_octree(scan, reduced_points, octree, voxel);
+                reduce_octree(scan, reduced_points, octree, voxel, use_reflectance);
                 write3dfile(reduced_points, reddir, scan->getIdentifier());
                 break;
             case RANGE:
-                reduce_range(scan, reddir, scan->getIdentifier(), width, height, ptype, scale);
+                reduce_range(scan, reddir, scan->getIdentifier(), width, height, ptype, scale, use_reflectance);
                 break;
             case INTERPOLATE:
-                reduce_interpolation(scan, reduced_points, width, height, ptype, scale);
+                reduce_interpolation(scan, reduced_points, width, height, ptype, scale, use_reflectance);
                 write3dfile(reduced_points, reddir, scan->getIdentifier());
                 break;
             default:
