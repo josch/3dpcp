@@ -171,7 +171,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, int &width, int &height,
         fbr::projection_method &ptype, string &dir, IOType &iotype,
         int &maxDist, int &minDist, reduction_method &rtype, double &scale,
-        double &voxel, int &octree, bool &reflectance)
+        double &voxel, int &octree, bool &use_reflectance)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -214,7 +214,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
 
     po::options_description output("Output options");
     output.add_options()
-        ("reflectance,R", po::bool_switch(&reflectance),
+        ("reflectance,R", po::bool_switch(&use_reflectance),
          "Use reflectance when reducing points and save scan files in UOSR format");
 
     po::options_description hidden("Hidden options");
@@ -309,9 +309,15 @@ void scan2mat(Scan *source, cv::Mat &mat)
 }
 
 void reduce_octree(Scan *scan, vector<cv::Vec4f> &reduced_points, int octree,
-        int red, bool reflectance)
+        int red, bool use_reflectance)
 {
-    scan->setReductionParameter(red, octree);
+    if (use_reflectance) {
+      unsigned int types = PointType::USE_REFLECTANCE;
+      PointType pointtype(types);
+      scan->setReductionParameter(red, octree, pointtype);
+    } else {
+      scan->setReductionParameter(red, octree);
+    }
     DataXYZ xyz_r(scan->get("xyz reduced"));
 
     for(unsigned int j = 0; j < xyz_r.size(); j++) {
@@ -321,7 +327,7 @@ void reduce_octree(Scan *scan, vector<cv::Vec4f> &reduced_points, int octree,
 
 void reduce_range(Scan *scan, vector<cv::Vec4f> &reduced_points, int width,
         int height, fbr::projection_method ptype, double scale,
-        bool reflectance)
+        bool use_reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -333,7 +339,7 @@ void reduce_range(Scan *scan, vector<cv::Vec4f> &reduced_points, int width,
     cv::Mat reflectance_image_resized;
     resize(image.getRangeImage(), range_image_resized, cv::Size(),
             scale, scale, cv::INTER_NEAREST);
-    if (reflectance) {
+    if (use_reflectance) {
         resize(image.getReflectanceImage(), reflectance_image_resized,
                 cv::Size(), scale, scale, cv::INTER_NEAREST);
     } else {
@@ -345,7 +351,7 @@ void reduce_range(Scan *scan, vector<cv::Vec4f> &reduced_points, int width,
 
 void reduce_interpolation(Scan *scan, vector<cv::Vec4f> &reduced_points,
         int width, int height, fbr::projection_method ptype, double scale,
-        bool reflectance)
+        bool use_reflectance)
 {
     panorama image(width, height, ptype);
     cv::Mat mat;
@@ -357,14 +363,14 @@ void reduce_interpolation(Scan *scan, vector<cv::Vec4f> &reduced_points,
     cv::Mat reflectance_image_resized;
     resize(image.getMap(), range_image_resized, cv::Size(),
             scale, scale, cv::INTER_NEAREST);
-    if (reflectance) {
+    if (use_reflectance) {
         resize(image.getReflectanceImage(), reflectance_image_resized,
                 cv::Size(), scale, scale, cv::INTER_NEAREST);
     }
     for(int i = 0; i < range_image_resized.rows; i++) {
         for(int j = 0; j < range_image_resized.cols; j++) {
             cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
-            if (reflectance) {
+            if (use_reflectance) {
                 reduced_points.push_back(cv::Vec4f(
                             vec[0], vec[1], vec[2],
                             reflectance_image_resized.at<uchar>(i, j)/255.0));
@@ -435,11 +441,11 @@ int main(int argc, char **argv)
     reduction_method rtype;
     double scale, voxel;
     int octree;
-    bool reflectance;
+    bool use_reflectance;
 
     parse_options(argc, argv, start, end, scanserver, width, height, ptype,
             dir, iotype, maxDist, minDist, rtype, scale, voxel, octree,
-            reflectance);
+            use_reflectance);
 
     Scan::openDirectory(scanserver, dir, iotype, start, end);
 
@@ -460,13 +466,13 @@ int main(int argc, char **argv)
 
         switch (rtype) {
             case OCTREE:
-                reduce_octree(scan, reduced_points, octree, voxel, reflectance);
+                reduce_octree(scan, reduced_points, octree, voxel, use_reflectance);
                 break;
             case RANGE:
-                reduce_range(scan, reduced_points, width, height, ptype, scale, reflectance);
+                reduce_range(scan, reduced_points, width, height, ptype, scale, use_reflectance);
                 break;
             case INTERPOLATE:
-                reduce_interpolation(scan, reduced_points, width, height, ptype, scale, reflectance);
+                reduce_interpolation(scan, reduced_points, width, height, ptype, scale, use_reflectance);
                 break;
             default:
                 cerr << "unknown method" << endl;
@@ -474,7 +480,7 @@ int main(int argc, char **argv)
                 break;
         }
 
-        if (reflectance)
+        if (use_reflectance)
             write_uosr(reduced_points, reddir, scan->getIdentifier());
         else
             write_uos(reduced_points, reddir, scan->getIdentifier());
