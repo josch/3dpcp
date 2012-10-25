@@ -71,10 +71,6 @@ using std::ofstream;
 #include <dlfcn.h>
 #endif
 
-
-#define IMAGE_HEIGHT 1000
-#define IMAGE_WIDTH 3600
-
 using namespace fbr;
 
 #include <boost/program_options.hpp>
@@ -118,10 +114,6 @@ namespace fbr {
         if(strcasecmp(arg.c_str(), "EQUIRECTANGULAR") == 0) v = EQUIRECTANGULAR;
         else if(strcasecmp(arg.c_str(), "CYLINDRICAL") == 0) v = CYLINDRICAL;
         else if(strcasecmp(arg.c_str(), "MERCATOR") == 0) v = MERCATOR;
-        else if(strcasecmp(arg.c_str(), "RECTILINEAR") == 0) v = RECTILINEAR;
-        else if(strcasecmp(arg.c_str(), "PANNINI") == 0) v = PANNINI;
-        else if(strcasecmp(arg.c_str(), "STEREOGRAPHIC") == 0) v = STEREOGRAPHIC;
-        else if(strcasecmp(arg.c_str(), "ZAXIS") == 0) v = ZAXIS;
         else if(strcasecmp(arg.c_str(), "CONIC") == 0) v = CONIC;
         else throw std::runtime_error(std::string("projection method ") + arg + std::string(" is unknown"));
     }
@@ -141,6 +133,25 @@ void validate(boost::any& v, const std::vector<std::string>& values,
         throw std::runtime_error("Format " + arg + " unknown.");
     }
 }
+
+void reduction_option_dependency(const po::variables_map & vm, reduction_method stype, const char *option)
+{
+    if (vm.count("reduction") && vm["reduction"].as<reduction_method>() == stype) {
+        if (!vm.count(option)) {
+            throw std::logic_error (string("this reduction option needs ")+option+" to be set");
+        }
+    }
+}
+
+void reduction_option_conflict(const po::variables_map & vm, reduction_method stype, const char *option)
+{
+    if (vm.count("reduction") && vm["reduction"].as<reduction_method>() == stype) {
+        if (vm.count(option)) {
+            throw std::logic_error (string("this reduction option is incompatible with ")+option);
+        }
+    }
+}
+
 
 /*
  * validates reduction method specification
@@ -186,7 +197,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
 
     po::options_description reduction("Reduction options");
     reduction.add_options()
-        ("reduction,r", po::value<reduction_method>(&rtype),
+        ("reduction,r", po::value<reduction_method>(&rtype)->required(),
          "choose reduction method (OCTREE, RANGE, INTERPOLATE)")
         ("scale,S", po::value<double>(&scale),
          "scaling factor")
@@ -194,7 +205,12 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "voxel size")
         ("projection,P", po::value<fbr::projection_method>(&ptype),
          "projection method or panorama image")
-        ("octree,O", po::value<int>(&octree));
+        ("octree,O", po::value<int>(&octree),
+         "0 -> center\n1 -> random\nN>1 -> random N")
+        ("width,w", po::value<int>(&width),
+         "width of panorama")
+        ("height,h", po::value<int>(&height),
+         "height of panorama");
 
     po::options_description hidden("Hidden options");
     hidden.add_options()
@@ -216,14 +232,40 @@ void parse_options(int argc, char **argv, int &start, int &end,
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv).
               options(all).positional(pd).run(), vm);
-    po::notify(vm);
 
     // display help
     if (vm.count("help")) {
         cout << cmdline_options;
-        cout << "\nExample usage:\n" << endl;
+        cout << endl
+            << "Example usage:" << endl
+            << "\t./bin/scan_red -s 0 -e 0 -f uos --reduction OCTREE --voxel 10 --octree 0 dat" << endl
+            << "\t./bin/scan_red -s 0 -e 0 -f uos --reduction RANGE --scale 0.5 --projection EQUIRECTANGULAR --width 3600 --height 1000 dat" << endl
+            << "\t./bin/scan_red -s 0 -e 0 -f uos --reduction INTERPOLATE --scale 0.2 --projection EQUIRECTANGULAR --width 3600 --height 1000 dat" << endl;
         exit(0);
     }
+
+    po::notify(vm);
+
+    reduction_option_dependency(vm, OCTREE, "voxel");
+    reduction_option_dependency(vm, OCTREE, "octree");
+    reduction_option_conflict(vm, OCTREE, "scale");
+    reduction_option_conflict(vm, OCTREE, "projection");
+    reduction_option_conflict(vm, OCTREE, "width");
+    reduction_option_conflict(vm, OCTREE, "height");
+
+    reduction_option_conflict(vm, RANGE, "voxel");
+    reduction_option_conflict(vm, RANGE, "octree");
+    reduction_option_dependency(vm, RANGE, "scale");
+    reduction_option_dependency(vm, RANGE, "projection");
+    reduction_option_dependency(vm, RANGE, "width");
+    reduction_option_dependency(vm, RANGE, "height");
+
+    reduction_option_conflict(vm, INTERPOLATE, "voxel");
+    reduction_option_conflict(vm, INTERPOLATE, "octree");
+    reduction_option_dependency(vm, INTERPOLATE, "scale");
+    reduction_option_dependency(vm, INTERPOLATE, "projection");
+    reduction_option_dependency(vm, INTERPOLATE, "width");
+    reduction_option_dependency(vm, INTERPOLATE, "height");
 
 #ifndef _MSC_VER
     if (dir[dir.length()-1] != '/') dir = dir + "/";
@@ -244,53 +286,49 @@ void createdirectory(string dir)
     }
 }
 
-cv::Mat scan2mat(Scan *source)
+void scan2mat(Scan *source, cv::Mat &mat)
 {
     DataXYZ xyz = source->get("xyz");
     unsigned int nPoints = xyz.size();
-    cv::Mat scan(nPoints,1,CV_32FC(4));
-    scan = cv::Scalar::all(0);
-    cv::MatIterator_<cv::Vec4f> it;
-    it = scan.begin<cv::Vec4f>();
+    mat.create(nPoints,1,CV_32FC(4));
+    mat = cv::Scalar::all(0);
+    cv::MatIterator_<cv::Vec4f> it = mat.begin<cv::Vec4f>();
     for(unsigned int i = 0; i < nPoints; i++){
         (*it)[0] = xyz[i][0];
         (*it)[1] = xyz[i][1];
         (*it)[2] = xyz[i][2];
         ++it;
     }
-    return scan;
 }
 
 void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
-        int red, double scale)
+        int red)
 {
     scan->setReductionParameter(red, octree);
     DataXYZ xyz_r(scan->get("xyz reduced"));
-    unsigned int nPoints = xyz_r.size();
 
-    for(unsigned int j = 0; j < nPoints; j++) {
-        cv::Vec3f vec(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]);
-        reduced_points.push_back(vec);
+    cout << red << " " << octree  << " " << xyz_r.size() << endl;
+    for(unsigned int j = 0; j < xyz_r.size(); j++) {
+        reduced_points.push_back(cv::Vec3d(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]));
     }
 }
 
-void reduce_range(Scan *scan, vector<cv::Vec3f> &reduced_points,
-        int width, int height, fbr::projection_method ptype, double scale)
+void reduce_range(Scan *scan, string reddir, string id, int width, int height,
+        fbr::projection_method ptype, double scale)
 {
     panorama image(width, height, ptype);
-    image.createPanorama(scan2mat(scan));
+    cv::Mat mat;
+    scan2mat(scan, mat);
+    image.createPanorama(mat);
     image.getDescription();
 
     /// Resize the range image, specify desired interpolation method
     cv::Mat range_image_resized; // reflectance_image_resized;
-    resize(image.getMap(), range_image_resized, cv::Size(), 
+    resize(image.getRangeImage(), range_image_resized, cv::Size(),
             scale, scale, cv::INTER_NEAREST);
-    for(int i = 0; i < range_image_resized.rows; i++) {
-        for(int j = 0; j < range_image_resized.cols; j++) {
-            cv::Vec3f vec = range_image_resized.at<cv::Vec3f>(i, j);
-            reduced_points.push_back(vec);
-        }
-    }
+    // why does the panorama class have functionality to write a UOS file?
+    // XXX: change recoverPointCloud to just return a point cloud
+    image.recoverPointCloud(range_image_resized, reddir + "/scan" + id + ".3d");
 }
 
 void reduce_interpolation(Scan *scan,
@@ -298,14 +336,14 @@ void reduce_interpolation(Scan *scan,
         fbr::projection_method ptype, double scale)
 {
     panorama image(width, height, ptype);
-    image.createPanorama(scan2mat(scan));
+    cv::Mat mat;
+    scan2mat(scan, mat);
+    image.createPanorama(mat);
     image.getDescription();
 
     /// Resize the range image, specify desired interpolation method
     cv::Mat range_image_resized; // reflectance_image_resized;
-    string ofilename;
-    stringstream ss;
-    resize(image.getRangeImage(), range_image_resized, cv::Size(),
+    resize(image.getMap(), range_image_resized, cv::Size(), 
             scale, scale, cv::INTER_NEAREST);
     for(int i = 0; i < range_image_resized.rows; i++) {
         for(int j = 0; j < range_image_resized.cols; j++) {
@@ -379,24 +417,27 @@ int main(int argc, char **argv)
 
         vector<cv::Vec3f> reduced_points;
 
-        switch (rtype) {
-            case OCTREE:
-                reduce_octree(scan, reduced_points, voxel, octree, scale);
-                break;
-            case RANGE:
-                reduce_range(scan, reduced_points, width, height, ptype, scale);
-                break;
-            case INTERPOLATE:
-                reduce_interpolation(scan, reduced_points, width, height, ptype, scale);
-                break;
-            default:
-                break;
-        }
-
         string reddir = dir + "reduced";
         createdirectory(reddir);
 
-        write3dfile(reduced_points, reddir, scan->getIdentifier());
+        switch (rtype) {
+            case OCTREE:
+                reduce_octree(scan, reduced_points, octree, voxel);
+                write3dfile(reduced_points, reddir, scan->getIdentifier());
+                break;
+            case RANGE:
+                reduce_range(scan, reddir, scan->getIdentifier(), width, height, ptype, scale);
+                break;
+            case INTERPOLATE:
+                reduce_interpolation(scan, reduced_points, width, height, ptype, scale);
+                write3dfile(reduced_points, reddir, scan->getIdentifier());
+                break;
+            default:
+                cerr << "unknown method" << endl;
+                return 1;
+                break;
+        }
+
         writeposefile(reddir, scan->get_rPos(), scan->get_rPosTheta(), scan->getIdentifier());
     }
 }
