@@ -236,10 +236,17 @@ void Scan::calcReducedPoints()
 
   // get xyz to start the scan load, separated here for time measurement
   DataXYZ xyz(get("xyz"));
+  DataReflectance reflectance(get("reflectance"));
 
   // if the scan hasn't been loaded we can't calculate anything
   if(xyz.size() == 0)
     throw runtime_error("Could not calculate reduced points, XYZ data is empty");
+  if (reduction_pointtype.hasReflectance()) {   
+    if(reflectance.size()==0)
+      throw runtime_error("Could not calculate reduced reflectance, reflectance data is empty");
+    if(xyz.size() != reflectance.size())
+      throw runtime_error("Could not calculate reduced reflectance, reflectance size is different from points size");
+  }
 
 #ifdef WITH_METRICS
   ClientMetric::scan_load_time.end(t);
@@ -251,10 +258,20 @@ void Scan::calcReducedPoints()
   // further copying
   if(reduction_voxelSize <= 0.0) {
     // copy the points
-    DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*xyz.size()));
-    for(unsigned int i = 0; i < xyz.size(); ++i) {
-      for(unsigned int j = 0; j < 3; ++j) {
-        xyz_r[i][j] = xyz[i][j];
+    if (reduction_pointtype.hasReflectance()) {   
+      DataXYZ xyz_r(create("xyz reduced", sizeof(double)*4*xyz.size()));
+      for(unsigned int i = 0; i < xyz.size(); ++i) {
+        for(unsigned int j = 0; j < 3; ++j) {
+          xyz_r[i][j] = xyz[i][j];
+        }
+        xyz_r[i][3] = reflectance[i];
+      }
+    } else {
+      DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*xyz.size()));
+      for(unsigned int i = 0; i < xyz.size(); ++i) {
+        for(unsigned int j = 0; j < 3; ++j) {
+          xyz_r[i][j] = xyz[i][j];
+        }
       }
     }
   } else {
@@ -268,6 +285,7 @@ void Scan::calcReducedPoints()
     vector<double*> center;
     center.clear();
 
+   
     if (reduction_nrpts > 0) {
       if (reduction_nrpts == 1) {
         oct->GetOctTreeRandom(center);
@@ -280,11 +298,25 @@ void Scan::calcReducedPoints()
 
     // storing it as reduced scan
     unsigned int size = center.size();
-    DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*size));
-    for(unsigned int i = 0; i < size; ++i) {
-      for(unsigned int j = 0; j < 3; ++j) {
-        xyz_r[i][j] = center[i][j];
+    if (reduction_pointtype.hasReflectance()) {   
+      DataXYZ xyz_r(create("xyz reduced", sizeof(double)*4*size));
+      for(unsigned int i = 0; i < size; ++i) {
+        for(unsigned int j = 0; j < 4; ++j) 
+          xyz_r[i][j] = center[i][j];
+        for(unsigned int k = 0; k < xyz.size(); ++k) {
+          if (fabs(xyz_r[i][0] - xyz[k][0]) < 1e-6 && 
+              fabs(xyz_r[i][1] - xyz[k][1]) < 1e-6 &&
+              fabs(xyz_r[i][2] - xyz[k][2]) < 1e-6) {
+            xyz_r[i][3] = reflectance[k];
+          }
+        }
+        cout << xyz_r[i][0] << " " << xyz_r[i][1] << " " << xyz_r[i][2] << " " << xyz_r[i][3] << endl;
       }
+    } else {
+      DataXYZ xyz_r(create("xyz reduced", sizeof(double)*4*size));
+      for(unsigned int i = 0; i < size; ++i) 
+        for(unsigned int j = 0; j < 3; ++j)
+          xyz_r[i][j] = center[i][j];
     }
 
     delete oct;

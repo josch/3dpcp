@@ -304,10 +304,12 @@ void scan2mat(Scan *source, cv::Mat &mat)
 void reduce_octree(Scan *scan, vector<cv::Vec3f> &reduced_points, int octree,
         int red)
 {
-    scan->setReductionParameter(red, octree);
+    unsigned int types = PointType::USE_REFLECTANCE;
+    PointType pointtype(types);
+    scan->setReductionParameter(red, octree, pointtype);
     DataXYZ xyz_r(scan->get("xyz reduced"));
 
-    cout << red << " " << octree  << " " << xyz_r.size() << endl;
+    cout << red << " " << octree  << " " << xyz_r.size() << " " << endl;
     for(unsigned int j = 0; j < xyz_r.size(); j++) {
         reduced_points.push_back(cv::Vec3d(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2]));
     }
