@@ -301,10 +301,19 @@ void scan2mat(Scan *source, cv::Mat &mat)
     mat = cv::Scalar::all(0);
     cv::MatIterator_<cv::Vec4f> it = mat.begin<cv::Vec4f>();
     for(unsigned int i = 0; i < nPoints; i++){
+        float reflectance = xyz_reflectance[i];
+        //normalize the reflectance
+        reflectance += 32;
+        reflectance /= 64;
+        reflectance -= 0.2;
+        reflectance /= 0.3;
+        if (reflectance < 0) reflectance = 0;
+        if (reflectance > 1) reflectance = 1;
+
         (*it)[0] = xyz[i][0];
         (*it)[1] = xyz[i][1];
         (*it)[2] = xyz[i][2];
-        (*it)[3] = xyz_reflectance[i];
+        (*it)[3] = reflectance;
         ++it;
     }
 }
