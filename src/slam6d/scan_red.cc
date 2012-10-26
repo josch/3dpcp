@@ -400,6 +400,8 @@ void write_uos(vector<cv::Vec4f> &points, string &dir, string id)
 {
     ofstream outfile(dir + "/scan" + id + ".3d");
 
+    outfile << "# header is ignored" << endl;
+
     for (vector<cv::Vec4f>::iterator it=points.begin(); it < points.end(); it++) {
         outfile << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << endl;
     }
@@ -413,6 +415,8 @@ void write_uos(vector<cv::Vec4f> &points, string &dir, string id)
 void write_uosr(vector<cv::Vec4f> &points, string &dir, string id)
 {
     ofstream outfile(dir + "/scan" + id + ".3d");
+
+    outfile << "# header is ignored" << endl;
 
     for (vector<cv::Vec4f>::iterator it=points.begin(); it < points.end(); it++) {
         outfile << (*it)[0] << " " << (*it)[1] << " " << (*it)[2] << " " << (*it)[3] << endl;
