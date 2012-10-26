@@ -1051,6 +1051,11 @@ void initShow(int argc, char **argv){
 
     // octtrees have been created successfully
     octpts.push_back(tree);
+
+    BOctTree<float>* cur_tree = ((Show_BOctTree<float>*)tree)->getTree();
+    vector <float*> points;
+    cur_tree->AllPoints( points );
+    cout << endl << endl << " Size: " << points.size() << endl;
     
     // print something
 #ifdef USE_COMPACT_TREE // TODO: change compact tree for memory footprint output, remove this case

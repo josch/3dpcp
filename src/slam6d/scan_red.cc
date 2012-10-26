@@ -315,36 +315,26 @@ void reduce_octree(Scan *scan, vector<cv::Vec4f> &reduced_points, int octree,
     if (use_reflectance) {
       unsigned int types = PointType::USE_REFLECTANCE;
       PointType pointtype(types);
-//      scan->setReductionParameter(red, octree, pointtype);
+      scan->setReductionParameter(red, octree, pointtype);
+      DataXYZ xyz_reduced(scan->get("xyz reduced"));
+      DataReflectance reflectance_reduced(scan->get("reflectance reduced"));
 
-      scan->setOcttreeParameter(red, octree, pointtype, false, false);
-    
-      DataOcttree* data_oct;
-      try {
-        data_oct = new DataOcttree(scan->get("octtree"));
-      } catch(runtime_error& e) {
-        cout << "Scan " << scan->getIdentifier() << " could not be loaded into memory, stopping here." << endl;
+      if (xyz_reduced.size() != reflectance_reduced.size()) {
+        cerr << "xyz_reduced size different than reflectance_reduced size" << endl;
         return;
       }
-      BOctTree<float>* btree = &(data_oct->get());
-      unsigned int tree_size = btree->getMemorySize();
-
-      vector<float*> points;
-      btree->AllPoints( points );
-      cout << "Size points: " << points.size() << endl;
-
+    
+      for(unsigned int j = 0; j < xyz_reduced.size(); j++) {
+          reduced_points.push_back(cv::Vec4f(xyz_reduced[j][0], xyz_reduced[j][1], xyz_reduced[j][2], reflectance_reduced[j]));
+      }
     } 
-/*
     else {
       scan->setReductionParameter(red, octree);
+      DataXYZ xyz_reduced(scan->get("xyz reduced"));
+      for(unsigned int j = 0; j < xyz_reduced.size(); j++) {
+          reduced_points.push_back(cv::Vec4f(xyz_reduced[j][0], xyz_reduced[j][1], xyz_reduced[j][2], 0.0));
+      }
     }
-
-    DataXYZ xyz_r(scan->get("xyz reduced"));
-
-    for(unsigned int j = 0; j < xyz_r.size(); j++) {
-        reduced_points.push_back(cv::Vec4f(xyz_r[j][0], xyz_r[j][1], xyz_r[j][2], 0.0));
-    }
-*/
 }
 
 void reduce_range(Scan *scan, vector<cv::Vec4f> &reduced_points, int width,
