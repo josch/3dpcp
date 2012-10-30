@@ -109,10 +109,15 @@ public:
   
   //! Reduced transformed points
   DataXYZ getXYZReduced();
+
+  //! Reduced transformed normals
+  DataXYZ getNormalsReduced();
   
   //! Create a new set of reduced points
   DataXYZ createXYZReduced(unsigned int size);
 
+  //! Create a new set of reduced normals, corresponding to the reduced points
+  DataXYZ createNormalsReduced(unsigned int size);
 
   //! Create a new set of reflectance
   DataReflectance createReflectance(unsigned int size);
@@ -175,7 +180,7 @@ private:
 protected:
   ip::offset_ptr<double> m_pose;
   ip::offset_ptr<CacheObject> m_xyz, m_rgb, m_reflectance, m_temperature, m_amplitude, m_type, m_deviation,
-    m_xyz_reduced, m_xyz_reduced_original,
+    m_xyz_reduced, m_normals_reduced, m_xyz_reduced_original,
     m_show_reduced, m_octtree;
   FrameVector m_frames;
 

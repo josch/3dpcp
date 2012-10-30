@@ -989,8 +989,16 @@ int main(int argc, char **argv)
     ofstream redptsout("points.pts");
     for(unsigned int i = 0; i < Scan::allScans.size(); i++) {
       DataXYZ xyz_r(Scan::allScans[i]->get("xyz reduced"));
+      DataXYZ normals_r(Scan::allScans[i]->get("normals reduced"));
+      if (xyz_r.size() != normals_r.size() ) {
+        cerr << "xyz reduced size != normals reduced size" << endl;
+        return 1;
+      }
       for(unsigned int i = 0; i < xyz_r.size(); ++i) {
-        redptsout << xyz_r[i][0] << ' ' << xyz_r[i][1] << ' ' << xyz_r[i][2] << '\n';
+        int r = (int)(normals_r[i][0] * (127.5) + 127.5);
+        int g = (int)(normals_r[i][1] * (127.5) + 127.5);
+        int b = (int)(fabs(normals_r[i][2]) * (255.0)); 
+        redptsout << xyz_r[i][0] << " " << xyz_r[i][1] << " " << xyz_r[i][2] << " " << r << " " << g << " " << b << "\n";
       }
       redptsout << std::flush;
 

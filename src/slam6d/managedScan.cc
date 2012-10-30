@@ -188,6 +188,13 @@ DataPointer ManagedScan::get(const std::string& identifier)
     }
     return m_shared_scan->getXYZReduced();
   } else
+  if(identifier == "normals reduced") {
+    // if this is a fresh run, initialize reduced properly via original or creating it anew
+    if(!m_reduced_ready) 
+      calcReducedOnDemand();
+    
+    return m_shared_scan->getNormalsReduced();
+  } else 
   if(identifier == "xyz reduced original") {
     // if reduction has completed, original will exist (either from last run or created in this run)
     if(!m_reduced_ready) {
@@ -223,6 +230,9 @@ DataPointer ManagedScan::create(const std::string& identifier, unsigned int size
   if(identifier == "xyz reduced") {
     return m_shared_scan->createXYZReduced(size / (3*sizeof(double)));
   } else
+  if(identifier == "normals reduced") {
+    return m_shared_scan->createNormalsReduced(size / (3*sizeof(double)));
+  } else 
   if(identifier == "xyz reduced original") {
     return m_shared_scan->createXYZReducedOriginal(size / (3*sizeof(double)));
   } else

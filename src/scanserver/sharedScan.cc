@@ -238,6 +238,14 @@ DataXYZ SharedScan::createXYZReduced(unsigned int size) {
   return m_xyz_reduced->createCacheData<SharedScan::onAllocation>(size*3*sizeof(double));
 }
 
+DataXYZ SharedScan::createNormalsReduced(unsigned int size) {
+  // size is in units of double[3], scale to bytes
+  return m_normals_reduced->createCacheData<SharedScan::onAllocation>(size*3*sizeof(double));
+}
+
+DataXYZ SharedScan::getNormalsReduced() {
+  return m_normals_reduced->getCacheData<SharedScan::onCacheMiss>();
+}
 
 DataReflectance SharedScan::createReflectance(unsigned int size) {
   // size is in units of double[1], scale to bytes
