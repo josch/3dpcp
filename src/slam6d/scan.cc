@@ -294,9 +294,15 @@ void Scan::calcReducedPoints()
     vector<Point> normals;
     normals.reserve(size);
     for(unsigned int i = 0; i < size; ++i) {
-  	  points.push_back(Point(xyz[i][0], xyz[i][1], xyz[i][2]));
+  	  points.push_back(Point(xyz_r[i][0], xyz_r[i][1], xyz_r[i][2]));
     }
 	  calculateNormalsAKNN(normals, points, 9, rPos);
+    DataXYZ normals_r(create("normals reduced", sizeof(double)*3*size));
+    for(unsigned int i = 0; i < size; ++i) {
+      normals_r[i][0] = normals[i].x;
+      normals_r[i][1] = normals[i].y;
+      normals_r[i][2] = normals[i].z;
+    }
 
     delete oct;
   }
@@ -350,10 +356,12 @@ void Scan::transformReduced(const double alignxf[16])
 #endif //WITH_METRICS
 
   DataXYZ xyz_r(get("xyz reduced"));
+  DataXYZ normals_r(get("normals reduced"));
   unsigned int i=0;
  // #pragma omp parallel for
   for( ; i < xyz_r.size(); ++i) {
     transform3(alignxf, xyz_r[i]);
+    transform3(alignxf, normals_r[i]);
   }
 
 #ifdef WITH_METRICS
