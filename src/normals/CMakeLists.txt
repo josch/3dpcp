@@ -1,5 +1,5 @@
 IF(WITH_NORMALS)
-  add_executable(normals normals.cc)
+  add_executable(normals main.cc normals.cc)
 
   FIND_PACKAGE(OpenCV REQUIRED)
 
