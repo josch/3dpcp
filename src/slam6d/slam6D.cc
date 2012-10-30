@@ -260,6 +260,14 @@ void usage(char* prog)
     << "         start at scan NR (i.e., neglects the first NR scans)" << endl
     << "         [ATTENTION: counting naturally starts with 0]" << endl
     << endl
+    << bold << "  --point-to-plane" << endl << normal
+    << "         uses point-to-plane ICP, i.e., computes closest points as usual" << endl
+    << "         but projects the query point to the surface defined by the closest" << endl
+    << "         point and its normal" << endl
+    << endl
+    << bold << "  --normalshoot" << endl << normal
+    << "         computes point correspondences along the normal direction" << endl
+    << endl
     << bold << "  -t" << normal << " NR, " << bold << "--nns_method=" << normal << "NR   [default: 1]" << endl
     << "         selects the Nearest Neighbor Search Algorithm" << endl
     << "           0 = simple k-d tree " << endl
@@ -314,7 +322,7 @@ int parseArgs(int argc, char **argv, string &dir, double &red, int &rand,
     int &mni_lum, string &net, double &cldist, int &clpairs, int &loopsize,
     double &epsilonICP, double &epsilonSLAM,  int &nns_method, bool &exportPts, double &distLoop,
     int &iterLoop, double &graphDist, int &octree, bool &cuda_enabled, IOType &type,
-    bool& scanserver)
+    bool& point_to_plane, bool& normalshoot, bool& scanserver)
 {
   int  c;
   // from unistd.h:
@@ -360,6 +368,8 @@ int parseArgs(int argc, char **argv, string &dir, double &red, int &rand,
     { "iterLoop",        required_argument,   0,  '1' }, // use the long format only
     { "graphDist",       required_argument,   0,  '3' }, // use the long format only
     { "cuda",            no_argument,         0,  'u' }, // cuda will be enabled
+    { "point-to-plane",  no_argument,         0,  'y' }, // use the long format only
+    { "normalshoot",     no_argument,         0,  'Y' }, // use the long format only
     { "scanserver",      no_argument,         0,  'S' },
     { 0,           0,   0,   0}                    // needed, cf. getopt.h
   };
@@ -496,6 +506,20 @@ int parseArgs(int argc, char **argv, string &dir, double &red, int &rand,
         break;
       case 'S':
         scanserver = true;
+        break;
+      case 'y':
+        point_to_plane = true;
+        if (normalshoot == true) {
+          cerr << "--normalshoot and --point-to-plane cannot both be on!" << endl;
+          abort(); 
+        }
+        break;
+      case 'Y':
+        normalshoot = true;
+        if (point_to_plane == true) {
+          cerr << "--normalshoot and --point-to-plane cannot both be on!" << endl;
+          abort(); 
+        }
         break;
       case '?':
         usage(argv[0]);
@@ -738,13 +762,14 @@ int main(int argc, char **argv)
   int octree       = 0;  // employ randomized octree reduction?
   bool cuda_enabled    = false;
   IOType type    = UOS;
+  bool point_to_plane = false, normalshoot = false;
   bool scanserver = false;
 
   parseArgs(argc, argv, dir, red, rand, mdm, mdml, mdmll, mni, start, end,
       maxDist, minDist, quiet, veryQuiet, eP, meta, algo, loopSlam6DAlgo, lum6DAlgo, anim,
       mni_lum, net, cldist, clpairs, loopsize, epsilonICP, epsilonSLAM,
       nns_method, exportPts, distLoop, iterLoop, graphDist, octree, cuda_enabled, type,
-      scanserver);
+      point_to_plane, normalshoot, scanserver);
 
   cout << "slam6D will proceed with the following parameters:" << endl;
   //@@@ to do :-)
