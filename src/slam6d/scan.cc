@@ -17,6 +17,8 @@
 #include "slam6d/Boctree.h"
 #include "slam6d/globals.icc"
 
+#include "normals/normals.h"
+
 #ifdef WITH_METRICS
 #include "slam6d/metrics.h"
 #endif
@@ -286,6 +288,15 @@ void Scan::calcReducedPoints()
         xyz_r[i][j] = center[i][j];
       }
     }
+
+    vector<Point> points;
+    points.reserve(size);
+    vector<Point> normals;
+    normals.reserve(size);
+    for(unsigned int i = 0; i < size; ++i) {
+  	  points.push_back(Point(xyz[i][0], xyz[i][1], xyz[i][2]));
+    }
+	  calculateNormalsAKNN(normals, points, 9, rPos);
 
     delete oct;
   }

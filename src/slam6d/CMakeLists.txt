@@ -1,7 +1,7 @@
 ### TOOLS
 
+FIND_PACKAGE(OpenCV REQUIRED)
 IF(WITH_TOOLS)
-  FIND_PACKAGE(OpenCV REQUIRED)
   ### SCAN_RED
   add_executable(scan_red scan_red.cc fbr/fbr_global.cc fbr/panorama.cc fbr/scan_cv.cc)
   
@@ -72,7 +72,7 @@ SET(SCANLIB_SRCS
   point_type.cc	icp6Dquatscale.cc searchTree.cc     Boctree.cc
   allocator.cc               
   scan.cc           basicScan.cc      managedScan.cc    metaScan.cc
-  io_types.cc       io_utils.cc       pointfilter.cc
+  io_types.cc       io_utils.cc       pointfilter.cc    ../normals/normals.cc
   )
 
 if(WITH_METRICS)
@@ -81,7 +81,7 @@ endif(WITH_METRICS)
 
 add_library(scan STATIC ${SCANLIB_SRCS})
 
-target_link_libraries(scan scanclient scanio)
+target_link_libraries(scan scanclient scanio newmat ANN fbr_cv_io fbr_panorama ${Boost_LIBRARIES} ${OpenCV_LIBS})
 
 IF(UNIX)
   target_link_libraries(scan dl)

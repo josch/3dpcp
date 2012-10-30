@@ -115,7 +115,6 @@ void calculateNormalsAdaptiveAKNN(vector<Point> &normals,vector<Point> &points,
   ANNkd_tree t(pa, points.size(), 3);	
 
   Point mean(0.0,0.0,0.0);
-  double temp_n[3],norm_n = 0.0;
   double e1,e2,e3;	
 		
   for (size_t i=0; i<points.size(); ++i)
@@ -219,7 +218,6 @@ void calculateNormalsPANORAMA(vector<Point> &normals,
 		if (extendedMap[i][j].size() == 0) continue;
 		neighbors.clear();
 		Point mean(0.0,0.0,0.0);
-		double temp_n[3],norm_n = 0.0;
 	      
 		// Offset for neighbor computation
 		int offset[2][5] = {{-1,0,1,0,0},{0,-1,0,1,0}};
@@ -303,6 +301,7 @@ void calculateNormalsPANORAMA(vector<Point> &normals,
 	   }	
     }  	
 }
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 ///////////FAST NORMALS USING PANORAMA EQUIRECTANGULAR RANGE IMAGE //////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////
