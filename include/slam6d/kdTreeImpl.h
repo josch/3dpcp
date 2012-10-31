@@ -233,6 +233,47 @@ protected:
       }
     }
   }
+
+  void _FindClosestInDirection(const PointData& pts, int threadNum) const {
+    AccessorFunc point;
+
+    // Leaf nodes
+    if (npts) {
+      for (int i=0; i < npts; i++) {
+        double *leaf_point = point(pts, leaf.p[i]);
+        if (fabs(leaf_point[0] - leaf.p[i][0]) && fabs(leaf_point[1] - leaf.p[i][1]) && fabs(leaf_point[2] - leaf.p[i][2]))
+          cout << "Yes!" << endl;
+        double p2p[] = { params[threadNum].p[0] - leaf.p[i][0],
+		         params[threadNum].p[1] - leaf.p[i][1],
+		         params[threadNum].p[2] - leaf.p[i][2] };
+        double myd2 = Len2(p2p) - sqr(Dot(p2p, params[threadNum].dir));
+        if ((myd2 < params[threadNum].closest_d2)) {
+	        params[threadNum].closest_d2 = myd2;
+          params[threadNum].closest = point(pts, leaf.p[i]);
+        }
+      }
+      return;
+    }
+
+
+    // Quick check of whether to abort
+    double p2c[] = { params[threadNum].p[0] - node.center[0],
+		     params[threadNum].p[1] - node.center[1],
+		     params[threadNum].p[2] - node.center[2] };
+    double myd2center = Len2(p2c) - sqr(Dot(p2c, params[threadNum].dir));
+    if (myd2center > node.r2 + params[threadNum].closest_d2 + 2.0f * max(node.r2, params[threadNum].closest_d2))
+      return;
+
+	  // Recursive case
+    if (params[threadNum].p[node.splitaxis] < node.center[node.splitaxis] ) {
+      node.child1->_FindClosestInDirection(pts, threadNum);
+      node.child2->_FindClosestInDirection(pts, threadNum);
+    } else {
+      node.child2->_FindClosestInDirection(pts, threadNum);
+      node.child1->_FindClosestInDirection(pts, threadNum);
+    }
+  }
+
 };
 
 #endif

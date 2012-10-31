@@ -67,3 +67,24 @@ double *KDtree::FindClosest(double *_p, double maxdist2, int threadNum) const
   _FindClosest(Void(), threadNum);
   return params[threadNum].closest;
 }
+
+/**
+ * Finds the closest point within the tree,
+ * wrt. the point given as first parameter and 
+ * the direction given as second parameter.
+ * @param _p point
+ * @param _dir direction
+ * @param maxdist2 maximal search distance.
+ * @param threadNum Thread number, for parallelization
+ * @return Pointer to the closest point
+ */
+double *KDtree::FindClosestInDirection(double *_p, double *_dir, double maxdist2, int threadNum) const
+{
+  params[threadNum].closest = 0;
+  params[threadNum].closest_d2 = maxdist2;
+  params[threadNum].p = _p;
+  params[threadNum].dir = _dir;
+  _FindClosestInDirection(Void(), threadNum);
+  return params[threadNum].closest;
+}
+

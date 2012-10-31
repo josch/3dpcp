@@ -32,6 +32,11 @@ public:
    */
   double *p;
 
+  /**
+   * direction vector used for computing closest points along a direction
+   */
+  double *dir;
+
   /** 
    * expand to 128 bytes to avoid false-sharing, 16 bytes from above + 28*4 bytes = 128 bytes
    */

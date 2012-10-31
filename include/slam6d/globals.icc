@@ -188,6 +188,18 @@ inline T Len2(const T *x)
   return sqr(x[0]) + sqr(x[1]) + sqr(x[2]);
 }
 
+/**
+ * Computes the <i>dot</i> product of two 3-vector
+ *
+ * @param x   input 3-vector
+ * @param y   input 3-vector
+ * @return    dot product of x and y
+ */
+template <class T>
+inline T Dot(const T *x, const T *y)
+{
+  return x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+}
 
 /**
  * Computes the length of a 3-vector
