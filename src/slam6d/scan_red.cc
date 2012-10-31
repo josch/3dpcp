@@ -403,7 +403,6 @@ int main(int argc, char **argv)
       const double* rPosTheta = scan->get_rPosTheta();
 
       DataXYZ xyz_reduced(scan->get("xyz reduced"));
-      DataXYZ normals_reduced(scan->get("normals reduced"));      
 
       scanFileName = dir + "reduced/scan" + to_string(scan_number, 3) + ".3d";
       poseFileName = dir + "reduced/scan" + to_string(scan_number, 3) + ".pose";

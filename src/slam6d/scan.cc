@@ -355,13 +355,29 @@ void Scan::transformReduced(const double alignxf[16])
   Timer t = ClientMetric::transform_time.start();
 #endif //WITH_METRICS
 
+  /// transform the normals using only the rotation component of alignxf
+  double alignxf_normals[16];
+  for (int i = 0; i < 16; ++i) {
+    if (i >= 12 && i <= 14)
+      alignxf_normals[i] = 0.;
+    else 
+      alignxf_normals[i] = alignxf[i];
+  }
+
+#ifdef DEBUG
+  for (int i = 0; i < 16; ++i) {
+    cout << alignxf_normals[i] << " ";
+    if( i % 4 == 3 ) cout << endl;
+  }
+#endif 
+
   DataXYZ xyz_r(get("xyz reduced"));
   DataXYZ normals_r(get("normals reduced"));
   unsigned int i=0;
  // #pragma omp parallel for
   for( ; i < xyz_r.size(); ++i) {
     transform3(alignxf, xyz_r[i]);
-    transform3(alignxf, normals_r[i]);
+    transform3(alignxf_normals, normals_r[i]);
   }
 
 #ifdef WITH_METRICS
