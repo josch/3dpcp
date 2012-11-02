@@ -38,6 +38,8 @@ public:
 	   double epsilonICP = 0.0000001,
 	   int nns_method = simpleKD,
 	   bool cuda_enabled = false,
+     bool point_to_plane = false,
+     bool normalshoot = false,
      bool cad_matching = false);
   
   /**
@@ -128,6 +130,16 @@ protected:
    * determines if CAD models are matched against one scan
    */
   bool cad_matching;
+
+  /**
+   * Uses point-to-plane ICP
+   */
+  bool point_to_plane;
+
+  /**
+   * Uses neighbor computation along the normal direction in ICP
+   */
+  bool normalshoot;
 };
 
 #include "icp6D.icc"

@@ -47,16 +47,20 @@ using std::cerr;
  * @param anim Animate which frames?
  * @param epsilonICP Termination criterion
  * @param nns_method Selects NNS method to be used  
+ * @param point_to_plane True for using point-to-plane ICP instead of point-to-point
+ * @param normalshoot True for using the normal direction for finding closest points
  */
 icp6D::icp6D(icp6Dminimizer *my_icp6Dminimizer, double max_dist_match,
 		   int max_num_iterations, bool quiet, bool meta, int rnd, bool eP,
-		   int anim, double epsilonICP, int nns_method, bool cuda_enabled,
-       bool cad_matching)
+		   int anim, double epsilonICP, int nns_method, bool cuda_enabled, 
+       bool point_to_plane, bool normalshoot, bool cad_matching)
 {
   this->my_icp6Dminimizer = my_icp6Dminimizer;
   this->anim              = anim;
   this->cuda_enabled      = cuda_enabled;
   this->nns_method        = nns_method;
+  this->point_to_plane    = point_to_plane;
+  this->normalshoot       = normalshoot;
   
   if (!quiet) {
     cout << "Maximal distance match      : " << max_dist_match << endl
@@ -145,6 +149,8 @@ int icp6D::match(Scan* PreviousScan, Scan* CurrentScan)
     {
       int thread_num = omp_get_thread_num();
 
+      Scan::normalshoot = this->normalshoot;
+      Scan::point_to_plane = this->point_to_plane;
       Scan::getPtPairsParallel(pairs, PreviousScan, CurrentScan,
           thread_num, step,
           rnd, max_dist_match2,
@@ -213,6 +219,9 @@ int icp6D::match(Scan* PreviousScan, Scan* CurrentScan)
     double centroid_d[3] = {0.0, 0.0, 0.0};
     vector<PtPair> pairs;
    
+    Scan::normalshoot = this->normalshoot;
+    Scan::point_to_plane = this->point_to_plane
+    /// compute closest points using the point-to-point method
     Scan::getPtPairs(&pairs, PreviousScan, CurrentScan, 0, rnd,
         max_dist_match2, ret, centroid_m, centroid_d);
 
@@ -278,6 +287,8 @@ double icp6D::Point_Point_Error(Scan* PreviousScan, Scan* CurrentScan, double ma
 #pragma omp parallel 
     {
       int thread_num = omp_get_thread_num();
+      Scan::normalshoot = this->normalshoot;
+      Scan::point_to_plane = this->point_to_plane;
       Scan::getPtPairsParallel(pairs, PreviousScan, CurrentScan,
           thread_num, step,
           rnd, sqr(max_dist_match),
@@ -299,7 +310,10 @@ double icp6D::Point_Point_Error(Scan* PreviousScan, Scan* CurrentScan, double ma
     double centroid_d[3] = {0.0, 0.0, 0.0};
     vector<PtPair> pairs;
 
-    Scan::getPtPairs(&pairs, PreviousScan, CurrentScan, 0, rnd, sqr(max_dist_match),error, centroid_m, centroid_d);
+    Scan::normalshoot = this->normalshoot;
+    Scan::point_to_plane = this->point_to_plane
+    Scan::getPtPairs(&pairs, PreviousScan, CurrentScan, 0, rnd, 
+        sqr(max_dist_match), error, centroid_m, centroid_d);
 
     // getPtPairs computes error as sum of squared distances
     error = 0;

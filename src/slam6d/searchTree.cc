@@ -20,7 +20,8 @@
 
 void SearchTree::getPtPairs(vector <PtPair> *pairs, 
     double *source_alignxf,                          // source
-    double * const *q_points, unsigned int startindex, unsigned int endindex,  // target
+    double * const *q_points, double * const *q_normals,
+    unsigned int startindex, unsigned int endindex,  // target
     int thread_num,
     int rnd, double max_dist_match2, double &sum,
     double *centroid_m, double *centroid_d)
@@ -43,7 +44,18 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
     
     transform3(local_alignxf_inv, t, s);
     
-    double *closest = this->FindClosest(s, max_dist_match2, thread_num);
+    double *closest;
+   if (q_normals == 0) {
+      /// dummy reference => classic point-to-point closest points
+      closest = this->FindClosest(s, max_dist_match2, thread_num);
+    } else {
+      /// normalshoot
+      double normal_dir[3];
+      for (unsigned int j = 0; j < 3; ++j)
+        normal_dir[j] = q_normals[i][j];
+
+      closest = FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
+    }
     if (closest) {
       transform3(source_alignxf, closest, s);
       
@@ -82,7 +94,8 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
 
 void SearchTree::getPtPairs(vector <PtPair> *pairs, 
     double *source_alignxf,                          // source
-    const DataXYZ& xyz_r, unsigned int startindex, unsigned int endindex,  // target
+    const DataXYZ& xyz_reduced, const DataXYZ& normals_reduced,
+    unsigned int startindex, unsigned int endindex,  // target
     int thread_num,
     int rnd, double max_dist_match2, double &sum,
     double *centroid_m, double *centroid_d)
@@ -99,13 +112,25 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
   for (unsigned int i = startindex; i < endindex; i++) {
     if (rnd > 1 && rand(rnd) != 0) continue;  // take about 1/rnd-th of the numbers only
     
-    t[0] = xyz_r[i][0];
-    t[1] = xyz_r[i][1];
-    t[2] = xyz_r[i][2];
+    t[0] = xyz_reduced[i][0];
+    t[1] = xyz_reduced[i][1];
+    t[2] = xyz_reduced[i][2];
     
     transform3(local_alignxf_inv, t, s);
     
-    double *closest = this->FindClosest(s, max_dist_match2, thread_num);
+    double *closest;
+    if (&normals_reduced == 0) {
+      /// dummy reference => classic point-to-point closest points
+      closest = this->FindClosest(s, max_dist_match2, thread_num);
+    } else {
+      /// normalshoot
+      double normal_dir[3];
+      for (unsigned int j = 0; j < 3; ++j)
+        normal_dir[j] = normals_reduced[i][j];
+
+      closest = FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
+    }
+
     if (closest) {
       transform3(source_alignxf, closest, s);
       

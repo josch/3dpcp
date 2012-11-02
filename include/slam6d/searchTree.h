@@ -81,14 +81,16 @@ public:
 
   virtual void getPtPairs(vector <PtPair> *pairs, 
 				  double *source_alignxf, 
-          double * const *q_points, unsigned int startindex, unsigned int endindex,
+          double * const *q_points, double * const *q_normals,
+          unsigned int startindex, unsigned int endindex,
 				  int thread_num,
 				  int rnd, double max_dist_match2, double &sum,
 				  double *centroid_m, double *centroid_d);
     
   virtual void getPtPairs(vector <PtPair> *pairs,
 				  double *source_alignxf,
-          const DataXYZ& xyz_r, unsigned int startindex, unsigned int endindex,
+          const DataXYZ& xyz_reduced, const DataXYZ& normals_reduced,
+          unsigned int startindex, unsigned int endindex,
 				  int thread_num,
 				  int rnd, double max_dist_match2, double &sum,
 				  double *centroid_m, double *centroid_d);

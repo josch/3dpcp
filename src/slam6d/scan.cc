@@ -36,6 +36,8 @@ using std::vector;
 
 vector<Scan*> Scan::allScans;
 bool Scan::scanserver = false;
+bool Scan::normalshoot = false;
+bool Scan::point_to_plane = false;
 
 
 void Scan::openDirectory(bool scanserver, const std::string& path, IOType type,
@@ -78,6 +80,9 @@ Scan::Scan()
   reduction_voxelSize = 0.0;
   reduction_nrpts = 0;
   reduction_pointtype = PointType();
+
+  normalshoot = false;
+  point_to_plane = false;
 
   // flags
   m_has_reduced = false;
@@ -190,12 +195,12 @@ void Scan::copyReducedToOriginal()
   Timer t = ClientMetric::copy_original_time.start();
 #endif //WITH_METRICS
 
-  DataXYZ xyz_r(get("xyz reduced"));
-  unsigned int size = xyz_r.size();
-  DataXYZ xyz_r_orig(create("xyz reduced original", sizeof(double)*3*size));
+  DataXYZ xyz_reduced(get("xyz reduced"));
+  unsigned int size = xyz_reduced.size();
+  DataXYZ xyz_reduced_orig(create("xyz reduced original", sizeof(double)*3*size));
   for(unsigned int i = 0; i < size; ++i) {
     for(unsigned int j = 0; j < 3; ++j) {
-      xyz_r_orig[i][j] = xyz_r[i][j];
+      xyz_reduced_orig[i][j] = xyz_reduced[i][j];
     }
   }
 
@@ -210,12 +215,12 @@ void Scan::copyOriginalToReduced()
   Timer t = ClientMetric::copy_original_time.start();
 #endif //WITH_METRICS
 
-  DataXYZ xyz_r_orig(get("xyz reduced original"));
-  unsigned int size = xyz_r_orig.size();
-  DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*size));
+  DataXYZ xyz_reduced_orig(get("xyz reduced original"));
+  unsigned int size = xyz_reduced_orig.size();
+  DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*3*size));
   for(unsigned int i = 0; i < size; ++i) {
     for(unsigned int j = 0; j < 3; ++j) {
-      xyz_r[i][j] = xyz_r_orig[i][j];
+      xyz_reduced[i][j] = xyz_reduced_orig[i][j];
     }
   }
 
@@ -253,10 +258,10 @@ void Scan::calcReducedPoints()
   // further copying
   if(reduction_voxelSize <= 0.0) {
     // copy the points
-    DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*xyz.size()));
+    DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*3*xyz.size()));
     for(unsigned int i = 0; i < xyz.size(); ++i) {
       for(unsigned int j = 0; j < 3; ++j) {
-        xyz_r[i][j] = xyz[i][j];
+        xyz_reduced[i][j] = xyz[i][j];
       }
     }
   } else {
@@ -282,10 +287,10 @@ void Scan::calcReducedPoints()
 
     // storing it as reduced scan
     unsigned int size = center.size();
-    DataXYZ xyz_r(create("xyz reduced", sizeof(double)*3*size));
+    DataXYZ xyz_reduced(create("xyz reduced", sizeof(double)*3*size));
     for(unsigned int i = 0; i < size; ++i) {
       for(unsigned int j = 0; j < 3; ++j) {
-        xyz_r[i][j] = center[i][j];
+        xyz_reduced[i][j] = center[i][j];
       }
     }
 
@@ -294,7 +299,7 @@ void Scan::calcReducedPoints()
     vector<Point> normals;
     normals.reserve(size);
     for(unsigned int i = 0; i < size; ++i) {
-  	  points.push_back(Point(xyz_r[i][0], xyz_r[i][1], xyz_r[i][2]));
+  	  points.push_back(Point(xyz_reduced[i][0], xyz_reduced[i][1], xyz_reduced[i][2]));
     }
 	  calculateNormalsAKNN(normals, points, 9, rPos);
     DataXYZ normals_r(create("normals reduced", sizeof(double)*3*size));
@@ -371,12 +376,12 @@ void Scan::transformReduced(const double alignxf[16])
   }
 #endif 
 
-  DataXYZ xyz_r(get("xyz reduced"));
+  DataXYZ xyz_reduced(get("xyz reduced"));
   DataXYZ normals_r(get("normals reduced"));
   unsigned int i=0;
  // #pragma omp parallel for
-  for( ; i < xyz_r.size(); ++i) {
-    transform3(alignxf, xyz_r[i]);
+  for( ; i < xyz_reduced.size(); ++i) {
+    transform3(alignxf, xyz_reduced[i]);
     transform3(alignxf_normals, normals_r[i]);
   }
 
@@ -619,21 +624,21 @@ void Scan::getNoPairsSimple(vector <double*> &diff,
   int thread_num,
   double max_dist_match2)
 {
-  DataXYZ xyz_r(Source->get("xyz reduced"));
+  DataXYZ xyz_reduced(Source->get("xyz reduced"));
   KDtree* kd = new KDtree(PointerArray<double>(Target->get("xyz reduced")).get(), Target->size<DataXYZ>("xyz reduced"));
 
   cout << "Max: " << max_dist_match2 << endl;
-  for (unsigned int i = 0; i < xyz_r.size(); i++) {
+  for (unsigned int i = 0; i < xyz_reduced.size(); i++) {
 
     double p[3];
-    p[0] = xyz_r[i][0];
-    p[1] = xyz_r[i][1];
-    p[2] = xyz_r[i][2];
+    p[0] = xyz_reduced[i][0];
+    p[1] = xyz_reduced[i][1];
+    p[2] = xyz_reduced[i][2];
 
 
     double *closest = kd->FindClosest(p, max_dist_match2, thread_num);
     if (!closest) {
-	    diff.push_back(xyz_r[i]);
+	    diff.push_back(xyz_reduced[i]);
 	    //diff.push_back(closest);
     }
   }
@@ -660,15 +665,15 @@ void Scan::getPtPairsSimple(vector <PtPair> *pairs,
   double *centroid_m, double *centroid_d)
 {
   KDtree* kd = new KDtree(PointerArray<double>(Source->get("xyz reduced")).get(), Source->size<DataXYZ>("xyz reduced"));
-  DataXYZ xyz_r(Target->get("xyz reduced"));
+  DataXYZ xyz_reduced(Target->get("xyz reduced"));
 
-  for (unsigned int i = 0; i < xyz_r.size(); i++) {
+  for (unsigned int i = 0; i < xyz_reduced.size(); i++) {
     if (rnd > 1 && rand(rnd) != 0) continue;  // take about 1/rnd-th of the numbers only
 
     double p[3];
-    p[0] = xyz_r[i][0];
-    p[1] = xyz_r[i][1];
-    p[2] = xyz_r[i][2];
+    p[0] = xyz_reduced[i][0];
+    p[1] = xyz_reduced[i][1];
+    p[2] = xyz_reduced[i][2];
 
     double *closest = kd->FindClosest(p, max_dist_match2, thread_num);
     if (closest) {
@@ -723,12 +728,24 @@ void Scan::getPtPairs(vector <PtPair> *pairs,
   }
 
   // get point pairs
-  DataXYZ xyz_r(Target->get("xyz reduced"));
-  Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
-      xyz_r, 0, xyz_r.size(),
-      thread_num,
-      rnd, max_dist_match2, sum, centroid_m, centroid_d);
-
+  DataXYZ xyz_reduced(Target->get("xyz reduced"));
+  if (Scan::normalshoot) {
+    DataXYZ normals_reduced(Target->get("normals reduced"));
+    if (normals_reduced.size() == 0) {
+      cerr << "Size of normals is 0. Quitting." << endl;
+      return;
+    }
+    Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
+        xyz_reduced, normals_reduced, 0, xyz_reduced.size(),
+        thread_num,
+        rnd, max_dist_match2, sum, centroid_m, centroid_d);
+  } else {
+    DataXYZ* dummy_normals = 0;
+    Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
+        xyz_reduced, *dummy_normals, 0, xyz_reduced.size(),
+        thread_num,
+        rnd, max_dist_match2, sum, centroid_m, centroid_d);
+  }
   // normalize centroids
   unsigned int size = pairs->size();
   if(size != 0) {
@@ -781,23 +798,52 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
   if(meta) {
     for(unsigned int i = 0; i < meta->size(); ++i) {
       // determine step for each scan individually
-      DataXYZ xyz_r(meta->getScan(i)->get("xyz reduced"));
-      unsigned int max = xyz_r.size();
+      DataXYZ xyz_reduced(meta->getScan(i)->get("xyz reduced"));
+      unsigned int max = xyz_reduced.size();
       unsigned int step = max / OPENMP_NUM_THREADS;
-      // call ptpairs for each scan and accumulate ptpairs, centroids and sum
+      if (Scan::normalshoot) {
+        DataXYZ normals_reduced(meta->getScan(i)->get("normals reduced"));
+        if (normals_reduced.size() == 0) {
+          cerr << "Size of normals is 0. Quitting." << endl;
+          return;
+        }
+        search->getPtPairs(&pairs[thread_num], Source->dalignxf,
+          xyz_reduced, normals_reduced, step * thread_num, step * thread_num + step,
+          thread_num,
+          rnd, max_dist_match2, sum[thread_num],
+          centroid_m[thread_num], centroid_d[thread_num]);
+      } else {
+        DataXYZ* dummy_normals = 0;
+        // call ptpairs for each scan and accumulate ptpairs, centroids and sum
+        search->getPtPairs(&pairs[thread_num], Source->dalignxf,
+          xyz_reduced, *dummy_normals, step * thread_num, step * thread_num + step,
+          thread_num,
+          rnd, max_dist_match2, sum[thread_num],
+          centroid_m[thread_num], centroid_d[thread_num]);
+      }
+    }
+  } else {
+    DataXYZ xyz_reduced(Target->get("xyz reduced"));
+    if (Scan::normalshoot) {
+      DataXYZ normals_reduced(Target->get("normals reduced"));
+      if (normals_reduced.size() == 0) {
+        cerr << "Size of normals is 0. Quitting." << endl;
+        return;
+      }
       search->getPtPairs(&pairs[thread_num], Source->dalignxf,
-        xyz_r, step * thread_num, step * thread_num + step,
+        xyz_reduced, normals_reduced, thread_num * step, thread_num * step + step,
+        thread_num,
+        rnd, max_dist_match2, sum[thread_num],
+        centroid_m[thread_num], centroid_d[thread_num]);
+    } else {
+      DataXYZ* dummy_normals = 0;
+      search->getPtPairs(&pairs[thread_num], Source->dalignxf,
+        xyz_reduced, *dummy_normals, thread_num * step, thread_num * step + step,
         thread_num,
         rnd, max_dist_match2, sum[thread_num],
         centroid_m[thread_num], centroid_d[thread_num]);
     }
-  } else {
-    DataXYZ xyz_r(Target->get("xyz reduced"));
-    search->getPtPairs(&pairs[thread_num], Source->dalignxf,
-      xyz_r, thread_num * step, thread_num * step + step,
-      thread_num,
-      rnd, max_dist_match2, sum[thread_num],
-      centroid_m[thread_num], centroid_d[thread_num]);
+    
   }
 
   // normalize centroids

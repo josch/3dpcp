@@ -513,6 +513,7 @@ int parseArgs(int argc, char **argv, string &dir, double &red, int &rand,
           cerr << "--normalshoot and --point-to-plane cannot both be on!" << endl;
           abort(); 
         }
+        Scan::point_to_plane = true;
         break;
       case 'Y':
         normalshoot = true;
@@ -520,6 +521,7 @@ int parseArgs(int argc, char **argv, string &dir, double &red, int &rand,
           cerr << "--normalshoot and --point-to-plane cannot both be on!" << endl;
           abort(); 
         }
+        Scan::normalshoot = true;
         break;
       case '?':
         usage(argv[0]);
@@ -838,7 +840,7 @@ int main(int argc, char **argv)
 #endif	 
     } else {
       my_icp = new icp6D(my_icp6Dminimizer, mdm, mni, quiet, meta, rand, eP,
-					anim, epsilonICP, nns_method, cuda_enabled);
+					anim, epsilonICP, nns_method, cuda_enabled, point_to_plane, normalshoot);
     }
 
     // check if CAD matching was selected as type
@@ -855,13 +857,13 @@ int main(int argc, char **argv)
     if (cuda_enabled) {
 #ifdef WITH_CUDA	 
       my_icp = new icp6Dcuda(my_icp6Dminimizer, mdm, mni, quiet, meta, rand, eP,
-					    anim, epsilonICP, nns_method, cuda_enabled);
+					    anim, epsilonICP, nns_method, cuda_enabled, point_to_plane, normalshoot);
 #else
       cout << "slam6d was not compiled for excuting CUDA code" << endl;
 #endif	 
     } else {
       my_icp = new icp6D(my_icp6Dminimizer, mdm, mni, quiet, meta, rand, eP,
-					anim, epsilonICP, nns_method, cuda_enabled);
+					anim, epsilonICP, nns_method, cuda_enabled, point_to_plane, normalshoot);
     }
     my_icp->doICP(Scan::allScans);
     graphSlam6D *my_graphSlam6D = new lum6DEuler(my_icp6Dminimizer, mdm, mdml, mni, quiet, meta,

@@ -405,6 +405,9 @@ private:
   static bool scanserver;
 
 public:
+  static bool normalshoot;
+  static bool point_to_plane;
+
   //! Mutex for safely reducing points and creating the search tree just once in a multithreaded environment  
   // it can not be compiled  in win32 use boost 1.48, therefore we remeove it  temporarily
   boost::mutex m_mutex_reduction, m_mutex_create_tree;
