@@ -40,7 +40,7 @@ void DrawPoints(GLenum mode, bool interruptable)
 
   // In case of animation
   if(frameNr != 0) {
-    cm->setMode(ScanColorManager::MODE_ANIMATION);
+    //cm->setMode(ScanColorManager::MODE_ANIMATION);
 
 #ifdef USE_GL_POINTS
     for(int iterator = (int)octpts.size()-1; iterator >= 0; iterator--) {
@@ -90,7 +90,7 @@ void DrawPoints(GLenum mode, bool interruptable)
       glPopMatrix();
     }
 
-    setScansColored(0);
+    //setScansColored(0);
   } else {
 
     if(mode == GL_SELECT){
