@@ -54,7 +54,7 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       for (unsigned int j = 0; j < 3; ++j)
         normal_dir[j] = q_normals[i][j];
 
-      closest = FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
+      closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
     if (closest) {
       transform3(source_alignxf, closest, s);
@@ -128,7 +128,7 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       for (unsigned int j = 0; j < 3; ++j)
         normal_dir[j] = normals_reduced[i][j];
 
-      closest = FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
+      closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
 
     if (closest) {

@@ -1351,6 +1351,11 @@ protected:
     }
     return static_cast<double*>(params[threadNum].closest);
   }
+
+double* FindClosestInDirection(double *point, double *dir, double maxdist, int thread) const {
+    throw runtime_error("FindClosestInDirection not implemented");
+    return NULL;
+}
   
 
 template <class P>

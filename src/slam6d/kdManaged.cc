@@ -60,6 +60,16 @@ double* KDtreeManaged::FindClosest(double *_p, double maxdist2, int threadNum) c
   return params[threadNum].closest;
 }
 
+double *KDtreeManaged::FindClosestInDirection(double *_p, double *_dir, double maxdist2, int threadNum) const
+{
+  params[threadNum].closest = 0;
+  params[threadNum].closest_d2 = maxdist2;
+  params[threadNum].p = _p;
+  params[threadNum].dir = _dir;
+  _FindClosestInDirection(*m_data, threadNum);
+  return params[threadNum].closest;
+}
+
 void KDtreeManaged::lock()
 {
   boost::lock_guard<boost::mutex> lock(m_mutex_locking);

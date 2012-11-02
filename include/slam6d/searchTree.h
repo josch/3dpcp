@@ -78,6 +78,7 @@ public:
    * @return Pointer to closest point 
    */
   virtual double *FindClosest(double *_p, double maxdist2, int threadNum = 0) const = 0 ;
+  virtual double *FindClosestInDirection(double *_p, double *_dir, double maxdist2, int threadNum = 0) const = 0 ;
 
   virtual void getPtPairs(vector <PtPair> *pairs, 
 				  double *source_alignxf, 

@@ -47,6 +47,7 @@ public:
   * @return Pointer to the closest point
   */  
   double *FindClosest(double *_p, double maxdist2, int threadNum = 0) const;
+  double *FindClosestInDirection(double *_p, double *_dir, double maxdist2, int threadNum = 0) const;
 
 private:
 
