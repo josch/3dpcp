@@ -52,7 +52,7 @@ ANNtree::ANNtree(PointerArray<double>&_pts, int n)
   */
   pts = new double*[n];
   double* tpts = new double[3*n];
-  for(unsigned int i = 0, j = 0; i < n; i++) {
+  for(int i = 0, j = 0; i < n; i++) {
     pts[i] = &tpts[j];
     tpts[j++] = _pts.get()[i][0];
     tpts[j++] = _pts.get()[i][1];
@@ -102,4 +102,11 @@ double *ANNtree::FindClosest(double *_p, double maxdist2, int threadNum) const
 
   return pts[idx];
 }  
+
+
+double *ANNtree::FindClosestInDirection(double *_p, double *_dir, double maxdist2, int threadNum) const
+{
+  throw runtime_error("FindClosestInDirection not implemented");
+  return NULL;
+} 
 
