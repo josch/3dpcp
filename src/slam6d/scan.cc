@@ -378,10 +378,12 @@ void Scan::transformReduced(const double alignxf[16])
 
   DataXYZ xyz_reduced(get("xyz reduced"));
   DataXYZ normals_r(get("normals reduced"));
-  unsigned int i=0;
+  unsigned int i;
  // #pragma omp parallel for
-  for( ; i < xyz_reduced.size(); ++i) {
+  for(i = 0; i < xyz_reduced.size(); ++i) {
     transform3(alignxf, xyz_reduced[i]);
+  }
+  for(i = 0; i < normals_r.size(); ++i) {
     transform3(alignxf_normals, normals_r[i]);
   }
 
