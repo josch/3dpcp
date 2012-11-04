@@ -1307,6 +1307,18 @@ inline void transform3(const double *alignxf, const double *point, double *tpoin
   tpoint[2] = point[0] * alignxf[2] + point[1] * alignxf[6] + point[2] * alignxf[10] + alignxf[14];
 }
 
+/*
+ * given a plane defined by a point and a normal, transform it to its nearest
+ * point on the plane
+ */
+inline void project_point_to_plane(const double *orig, const double *norm, const double *p, double *P)
+{
+  double dist = (p[0]-orig[0])*norm[0] + (p[1]-orig[1])*norm[1] + (p[2]-orig[2])*norm[2];
+  P[0] = p[0] - dist*norm[0];
+  P[1] = p[1] - dist*norm[1];
+  P[2] = p[2] - dist*norm[2];
+}
+
 inline std::string trim(const std::string& source)
 {
   unsigned int start = 0, end = source.size() - 1;

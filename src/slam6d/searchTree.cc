@@ -24,8 +24,12 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
     unsigned int startindex, unsigned int endindex,  // target
     int thread_num,
     int rnd, double max_dist_match2, double &sum,
-    double *centroid_m, double *centroid_d)
+    double *centroid_m, double *centroid_d, bool point_to_plane)
 {
+  if (q_normals == 0 && point_to_plane) {
+    throw runtime_error("point_to_plane but no normals");
+  }
+
   // prepare this tree for resource access in FindClosest
   lock();
   
@@ -44,20 +48,30 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
     
     transform3(local_alignxf_inv, t, s);
     
+    // calculate normal of t
+    double normal_dir[3];
+    if (q_normals != 0) {
+      for (unsigned int j = 0; j < 3; ++j)
+        normal_dir[j] = q_normals[i][j];
+    }
+
     double *closest;
-   if (q_normals == 0) {
+    if ((q_normals == 0 && !point_to_plane)
+     || (q_normals != 0 && point_to_plane)) {
       /// dummy reference => classic point-to-point closest points
       closest = this->FindClosest(s, max_dist_match2, thread_num);
     } else {
       /// normalshoot
-      double normal_dir[3];
-      for (unsigned int j = 0; j < 3; ++j)
-        normal_dir[j] = q_normals[i][j];
-
       closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
     if (closest) {
       transform3(source_alignxf, closest, s);
+
+      if (point_to_plane) {
+        // make s the projection of t on the plane defined by s and the
+        // normal of t
+        project_point_to_plane(s, normal_dir, t, s);
+      }
       
       // This should be right, model=Source=First=not moving
       centroid_m[0] += s[0];
@@ -98,8 +112,12 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
     unsigned int startindex, unsigned int endindex,  // target
     int thread_num,
     int rnd, double max_dist_match2, double &sum,
-    double *centroid_m, double *centroid_d)
+    double *centroid_m, double *centroid_d, bool point_to_plane)
 {
+  if (&normals_reduced == 0 && point_to_plane) {
+    throw runtime_error("point_to_plane but no normals");
+  }
+
   // prepare this tree for resource access in FindClosest
   lock();
   
@@ -118,21 +136,31 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
     
     transform3(local_alignxf_inv, t, s);
     
+    // calculate normal of t
+    double normal_dir[3];
+    if (&normals_reduced != 0) {
+      for (unsigned int j = 0; j < 3; ++j)
+        normal_dir[j] = normals_reduced[i][j];
+    }
+
     double *closest;
-    if (&normals_reduced == 0) {
+    if ((&normals_reduced == 0 && !point_to_plane)
+     || (&normals_reduced != 0 && point_to_plane)) {
       /// dummy reference => classic point-to-point closest points
       closest = this->FindClosest(s, max_dist_match2, thread_num);
     } else {
       /// normalshoot
-      double normal_dir[3];
-      for (unsigned int j = 0; j < 3; ++j)
-        normal_dir[j] = normals_reduced[i][j];
-
       closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
 
     if (closest) {
       transform3(source_alignxf, closest, s);
+
+      if (point_to_plane) {
+        // make s the projection of t on the plane defined by s and the
+        // normal of t
+        project_point_to_plane(s, normal_dir, t, s);
+      }
       
       // This should be right, model=Source=First=not moving
       centroid_m[0] += s[0];

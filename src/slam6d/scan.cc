@@ -729,7 +729,7 @@ void Scan::getPtPairs(vector <PtPair> *pairs,
 
   // get point pairs
   DataXYZ xyz_reduced(Target->get("xyz reduced"));
-  if (Scan::normalshoot) {
+  if (Scan::normalshoot || Scan::point_to_plane) {
     DataXYZ normals_reduced(Target->get("normals reduced"));
     if (normals_reduced.size() == 0) {
       cerr << "Size of normals is 0. Quitting." << endl;
@@ -738,13 +738,15 @@ void Scan::getPtPairs(vector <PtPair> *pairs,
     Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
         xyz_reduced, normals_reduced, 0, xyz_reduced.size(),
         thread_num,
-        rnd, max_dist_match2, sum, centroid_m, centroid_d);
+        rnd, max_dist_match2, sum, centroid_m, centroid_d,
+        Scan::point_to_plane);
   } else {
     DataXYZ* dummy_normals = 0;
     Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
         xyz_reduced, *dummy_normals, 0, xyz_reduced.size(),
         thread_num,
-        rnd, max_dist_match2, sum, centroid_m, centroid_d);
+        rnd, max_dist_match2, sum, centroid_m, centroid_d,
+        Scan::point_to_plane);
   }
   // normalize centroids
   unsigned int size = pairs->size();
@@ -801,7 +803,7 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
       DataXYZ xyz_reduced(meta->getScan(i)->get("xyz reduced"));
       unsigned int max = xyz_reduced.size();
       unsigned int step = max / OPENMP_NUM_THREADS;
-      if (Scan::normalshoot) {
+      if (Scan::normalshoot || Scan::point_to_plane) {
         DataXYZ normals_reduced(meta->getScan(i)->get("normals reduced"));
         if (normals_reduced.size() == 0) {
           cerr << "Size of normals is 0. Quitting." << endl;
@@ -811,7 +813,8 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
           xyz_reduced, normals_reduced, step * thread_num, step * thread_num + step,
           thread_num,
           rnd, max_dist_match2, sum[thread_num],
-          centroid_m[thread_num], centroid_d[thread_num]);
+          centroid_m[thread_num], centroid_d[thread_num],
+          Scan::point_to_plane);
       } else {
         DataXYZ* dummy_normals = 0;
         // call ptpairs for each scan and accumulate ptpairs, centroids and sum
@@ -819,12 +822,13 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
           xyz_reduced, *dummy_normals, step * thread_num, step * thread_num + step,
           thread_num,
           rnd, max_dist_match2, sum[thread_num],
-          centroid_m[thread_num], centroid_d[thread_num]);
+          centroid_m[thread_num], centroid_d[thread_num],
+          Scan::point_to_plane);
       }
     }
   } else {
     DataXYZ xyz_reduced(Target->get("xyz reduced"));
-    if (Scan::normalshoot) {
+    if (Scan::normalshoot || Scan::point_to_plane) {
       DataXYZ normals_reduced(Target->get("normals reduced"));
       if (normals_reduced.size() == 0) {
         cerr << "Size of normals is 0. Quitting." << endl;
@@ -834,14 +838,16 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
         xyz_reduced, normals_reduced, thread_num * step, thread_num * step + step,
         thread_num,
         rnd, max_dist_match2, sum[thread_num],
-        centroid_m[thread_num], centroid_d[thread_num]);
+        centroid_m[thread_num], centroid_d[thread_num],
+        Scan::point_to_plane);
     } else {
       DataXYZ* dummy_normals = 0;
       search->getPtPairs(&pairs[thread_num], Source->dalignxf,
         xyz_reduced, *dummy_normals, thread_num * step, thread_num * step + step,
         thread_num,
         rnd, max_dist_match2, sum[thread_num],
-        centroid_m[thread_num], centroid_d[thread_num]);
+        centroid_m[thread_num], centroid_d[thread_num],
+        Scan::point_to_plane);
     }
     
   }

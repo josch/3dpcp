@@ -86,7 +86,7 @@ public:
           unsigned int startindex, unsigned int endindex,
 				  int thread_num,
 				  int rnd, double max_dist_match2, double &sum,
-				  double *centroid_m, double *centroid_d);
+				  double *centroid_m, double *centroid_d, bool point_to_plane);
     
   virtual void getPtPairs(vector <PtPair> *pairs,
 				  double *source_alignxf,
@@ -94,7 +94,7 @@ public:
           unsigned int startindex, unsigned int endindex,
 				  int thread_num,
 				  int rnd, double max_dist_match2, double &sum,
-				  double *centroid_m, double *centroid_d);
+				  double *centroid_m, double *centroid_d, bool point_to_plane);
 };
 
 #endif
