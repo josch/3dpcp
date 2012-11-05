@@ -149,6 +149,7 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       /// dummy reference => classic point-to-point closest points
       closest = this->FindClosest(s, max_dist_match2, thread_num);
     } else {
+      Normalize3(normal_dir);
       /// normalshoot
       closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
@@ -185,7 +186,7 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       << q_points[i][0] << " "
       << q_points[i][1] << " "
       << q_points[i][2] << "          " << Len2(p12) << endl; */
-    }
+    } 
 
   }
   

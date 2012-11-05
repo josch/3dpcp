@@ -287,6 +287,7 @@ double icp6D::Point_Point_Error(Scan* PreviousScan, Scan* CurrentScan, double ma
 #pragma omp parallel 
     {
       int thread_num = omp_get_thread_num();
+      /// set normalshoot and point_to_plane flags in Scan
       Scan::normalshoot = this->normalshoot;
       Scan::point_to_plane = this->point_to_plane;
       Scan::getPtPairsParallel(pairs, PreviousScan, CurrentScan,

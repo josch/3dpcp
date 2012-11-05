@@ -239,11 +239,11 @@ protected:
 
     // Leaf nodes
     if (npts) {
-      for (int i=0; i < npts; i++) {
-        double *leaf_point = point(pts, leaf.p[i]);
-        double p2p[] =  { params[threadNum].p[0] - leaf_point[0],
-		         params[threadNum].p[1] - leaf_point[1],
-		         params[threadNum].p[2] - leaf_point[2] };
+//      cout << "Closest d2: " << params[threadNum].closest_d2 << endl;
+      for (int i = 0; i < npts; i++) {
+        double p2p[] =  { params[threadNum].p[0] - point(pts, leaf.p[i])[0],
+		         params[threadNum].p[1] - point(pts, leaf.p[i])[1],
+		         params[threadNum].p[2] - point(pts, leaf.p[i])[2] };
         double myd2 = Len2(p2p) - sqr(Dot(p2p, params[threadNum].dir));
         if ((myd2 < params[threadNum].closest_d2)) {
 	        params[threadNum].closest_d2 = myd2;
