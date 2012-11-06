@@ -369,13 +369,6 @@ void Scan::transformReduced(const double alignxf[16])
       alignxf_normals[i] = alignxf[i];
   }
 
-#ifdef DEBUG
-  for (int i = 0; i < 16; ++i) {
-    cout << alignxf_normals[i] << " ";
-    if( i % 4 == 3 ) cout << endl;
-  }
-#endif 
-
   DataXYZ xyz_reduced(get("xyz reduced"));
   DataXYZ normals_r(get("normals reduced"));
   unsigned int i;
@@ -383,6 +376,7 @@ void Scan::transformReduced(const double alignxf[16])
   for(i = 0; i < xyz_reduced.size(); ++i) {
     transform3(alignxf, xyz_reduced[i]);
   }
+  // apply normal-specific transformation
   for(i = 0; i < normals_r.size(); ++i) {
     transform3(alignxf_normals, normals_r[i]);
   }
@@ -734,7 +728,7 @@ void Scan::getPtPairs(vector <PtPair> *pairs,
   if (Scan::normalshoot || Scan::point_to_plane) {
     DataXYZ normals_reduced(Target->get("normals reduced"));
     if (normals_reduced.size() == 0) {
-      cerr << "Size of normals is 0. Quitting." << endl;
+      cerr << "Couldn't compute normals on the reduced points. Quitting." << endl;
       return;
     }
     Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
@@ -743,6 +737,8 @@ void Scan::getPtPairs(vector <PtPair> *pairs,
         rnd, max_dist_match2, sum, centroid_m, centroid_d,
         Scan::point_to_plane);
   } else {
+    /// call getPtPairs with dummy normals (null pointer) 
+    /// normals aren't needed outside the normalshoot and point_to_plane cases
     DataXYZ* dummy_normals = 0;
     Source->getSearchTree()->getPtPairs(pairs, Source->dalignxf,
         xyz_reduced, *dummy_normals, 0, xyz_reduced.size(),
@@ -808,7 +804,7 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
       if (Scan::normalshoot || Scan::point_to_plane) {
         DataXYZ normals_reduced(meta->getScan(i)->get("normals reduced"));
         if (normals_reduced.size() == 0) {
-          cerr << "Size of normals is 0. Quitting." << endl;
+          cerr << "Couldn't compute normals on the reduced points. Quitting." << endl;
           return;
         }
         search->getPtPairs(&pairs[thread_num], Source->dalignxf,
@@ -818,6 +814,8 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
           centroid_m[thread_num], centroid_d[thread_num],
           Scan::point_to_plane);
       } else {
+        /// call getPtPairs with dummy normals (null pointer) 
+        /// normals aren't needed outside the normalshoot and point_to_plane cases
         DataXYZ* dummy_normals = 0;
         // call ptpairs for each scan and accumulate ptpairs, centroids and sum
         search->getPtPairs(&pairs[thread_num], Source->dalignxf,
@@ -833,7 +831,7 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
     if (Scan::normalshoot || Scan::point_to_plane) {
       DataXYZ normals_reduced(Target->get("normals reduced"));
       if (normals_reduced.size() == 0) {
-        cerr << "Size of normals is 0. Quitting." << endl;
+        cerr << "Couldn't compute normals on the reduced points. Quitting." << endl;
         return;
       }
       search->getPtPairs(&pairs[thread_num], Source->dalignxf,
@@ -843,6 +841,8 @@ void Scan::getPtPairsParallel(vector <PtPair> *pairs, Scan* Source, Scan* Target
         centroid_m[thread_num], centroid_d[thread_num],
         Scan::point_to_plane);
     } else {
+      /// call getPtPairs with dummy normals (null pointer) 
+      /// normals aren't needed outside the normalshoot and point_to_plane cases
       DataXYZ* dummy_normals = 0;
       search->getPtPairs(&pairs[thread_num], Source->dalignxf,
         xyz_reduced, *dummy_normals, thread_num * step, thread_num * step + step,

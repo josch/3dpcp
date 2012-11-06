@@ -61,11 +61,12 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       /// dummy reference => classic point-to-point closest points
       closest = this->FindClosest(s, max_dist_match2, thread_num);
     } else {
-      /// normalshoot
+      /// obtain closest point along the normal direction (normalshoot)
       closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
 
-    if (closest) {
+    /// limit the closest point to 20cms
+    if (closest && Dist2(s, closest) <= sqr(20.0)) {
       transform3(source_alignxf, closest, s);
 
       if (point_to_plane) {
@@ -90,13 +91,6 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       sum += Len2(p12);
       
       pairs->push_back(myPair);
-    /*cout << "PTPAIR" << i << " " 
-      << p[0] << " "
-      << p[1] << " "
-      << p[2] << " - " 
-      << q_points[i][0] << " "
-      << q_points[i][1] << " "
-      << q_points[i][2] << "          " << Len2(p12) << endl; */
     }
 
   }
@@ -155,6 +149,7 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       closest = this->FindClosestInDirection(s, normal_dir, max_dist_match2, thread_num);
     }
 
+    /// limit the closest point to 20cms
     if (closest && Dist2(s, closest) <= sqr(20.0)) {
       transform3(source_alignxf, closest, s);
 
@@ -180,19 +175,9 @@ void SearchTree::getPtPairs(vector <PtPair> *pairs,
       sum += Len2(p12);
 
       pairs->push_back(myPair);
-    /*cout << "PTPAIR" << i << " " 
-      << p[0] << " "
-      << p[1] << " "
-      << p[2] << " - " 
-      << q_points[i][0] << " "
-      << q_points[i][1] << " "
-      << q_points[i][2] << "          " << Len2(p12) << endl; */
-    } else {
     } 
 
   }
-
-  //cout << "SIZE: " << pairs->size() << endl << endl;
 
   // release resource access lock
   unlock();
