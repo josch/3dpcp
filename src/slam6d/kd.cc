@@ -85,10 +85,6 @@ double *KDtree::FindClosestInDirection(double *_p, double *_dir, double maxdist2
   params[threadNum].p = _p;
   params[threadNum].dir = _dir;
   _FindClosestInDirection(Void(), threadNum);
-  if ( Dist2(_p, params[threadNum].closest) <= sqr(20.0) ) {
-    //  cout << _p[0] << " " << _p[1] << " " << _p[2] << " " << c[0] << " " << c[1] << " " << c[2] << " " << _dir[0] << " " << _dir[1] << " " << _dir[2] << endl;
-    return params[threadNum].closest;
-  }
-  return 0;  
+  return params[threadNum].closest;
 }
 
