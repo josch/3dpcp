@@ -36,11 +36,13 @@ IF(WITH_TOOLS)
   add_executable(pose2frames pose2frames.cc)
   add_executable(riegl2frames riegl2frames.cc)
   add_executable(toGlobal toGlobal.cc)
+  add_executable(knn_range_search knn_range_search.cc)  
 
   IF(UNIX)
     target_link_libraries(graph_balancer scan ${Boost_GRAPH_LIBRARY} ${Boost_SERIALIZATION_LIBRARY} ${Boost_REGEX_LIBRARY})
     target_link_libraries(exportPoints scan dl ANN)
     target_link_libraries(toGlobal scan)
+    target_link_libraries(knn_range_search scan ${Boost_LIBRARIES} ANN)
   ENDIF(UNIX)
 
   
@@ -70,7 +72,7 @@ SET(SCANLIB_SRCS
   point_type.cc	icp6Dquatscale.cc searchTree.cc     Boctree.cc
   allocator.cc               
   scan.cc           basicScan.cc      managedScan.cc    metaScan.cc
-  io_types.cc       io_utils.cc       pointfilter.cc
+  io_types.cc       io_utils.cc       pointfilter.cc    knn_range_search.cc
   )
 
 if(WITH_METRICS)
