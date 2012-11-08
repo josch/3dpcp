@@ -12,6 +12,7 @@
 #include "slam6d/point.h"
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
+#include "slam6d/kd.h"
 
 #include <string>
 using std::string;
@@ -176,12 +177,58 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    cout << "Using: " << searchMethod << " knn: " << knn << " range: " << range << endl;
-
     for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
         Scan* scan = *it;
         // apply optional filtering
         scan->setRangeFilter(maxDist, minDist);
+
+        DataXYZ xyz = scan->get("xyz");
+        unsigned int nPoints = xyz.size();
+        double **points = new double*[nPoints];
+        for (unsigned int i = 0; i < nPoints; ++i) {
+            points[i] = new double[3];
+            for (unsigned int j = 0; j < 3; ++j) 
+                points[i][j] = xyz[i][j];
+        }
+
+        /// KDtree range search
+        KDtree kd_tree(points, nPoints);
+        vector<double *> closest;
+        kd_tree.FindClosestKNNRange(points[0], 20.0, closest, 10);
+        cout << "KDtree neighbors: " << closest.size() << endl;
+        for (size_t i = 0; i < closest.size(); ++i) {
+            cout << closest[i][0] << " " << closest[i][1] << " " << closest[i][2] << endl;
+        }
+
+        /// ANN range search
+        ANNpointArray pa = annAllocPts(nPoints, 3);
+        for (size_t i = 0; i < nPoints; ++i)
+           for (unsigned int j = 0; j < 3; ++j) 
+               pa[i][j] = points[i][j];
+
+        ANNkd_tree t(pa, nPoints, 3);	
+        ANNidxArray nidx = new ANNidx[100];
+        ANNdistArray d = new ANNdist[100];		
+
+        ANNpoint p = pa[0];
+        int nr_neighbors = t.annkFRSearch(p, 20.0, 10, nidx, d, 0.0);
+        cout << endl << "ANN neighbors: " << nr_neighbors << endl;
+
+        for (int i = 0; i < 10; ++i) {
+            for (unsigned int j = 0; j < 3; ++j) {
+                cout << points[nidx[i]][j] << " ";
+            }
+            cout << endl;
+      	}
+
+        delete[] nidx;
+        delete[] d;
+        annDeallocPts(pa);
+
+        for (unsigned int i = 0; i < nPoints; ++i) {
+            delete []points[i];
+        }
+        delete []points;
 
     }
 

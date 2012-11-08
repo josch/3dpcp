@@ -25,6 +25,7 @@
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::vector;
 #include <algorithm>
 using std::swap;
 #include <cmath>
@@ -66,4 +67,15 @@ double *KDtree::FindClosest(double *_p, double maxdist2, int threadNum) const
   params[threadNum].p = _p;
   _FindClosest(Void(), threadNum);
   return params[threadNum].closest;
+}
+
+void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& closest_list, int knn, int threadNum) const
+{
+  closest_list.clear();
+  params[threadNum].closest = 0;
+  params[threadNum].closest_d2 = maxdist2;
+  params[threadNum].p = _p;
+  params[threadNum].k = knn;
+  _FindClosestKNNRange(Void(), threadNum);
+  closest_list = params[threadNum].closest_list;
 }

@@ -233,6 +233,50 @@ protected:
       }
     }
   }
+
+  void _FindClosestKNNRange(const PointData& pts, int threadNum) const {
+    AccessorFunc point;
+
+    // Leaf nodes
+    if (npts) {
+      for (int i = 0; i < npts; i++) {
+        double myd2 = Dist2(params[threadNum].p, point(pts, leaf.p[i]));
+        if (myd2 < params[threadNum].closest_d2) {
+          if (params[threadNum].k < 0) {
+            /// use range search
+            params[threadNum].closest_list.push_back( point(pts, leaf.p[i]) );
+          } else {
+            /// use knn range search
+            if ((int) params[threadNum].closest_list.size() < params[threadNum].k)
+              params[threadNum].closest_list.push_back( point(pts, leaf.p[i]) );
+          }
+        }
+      }
+      return;
+    }
+
+    // Quick check of whether to abort  
+    double approx_dist_bbox = max(max(fabs(params[threadNum].p[0]-node.center[0])-node.dx,
+                               fabs(params[threadNum].p[1]-node.center[1])-node.dy),
+						       fabs(params[threadNum].p[2]-node.center[2])-node.dz);
+    if (approx_dist_bbox >= 0 && sqr(approx_dist_bbox) >= params[threadNum].closest_d2)
+      return;
+
+    // Recursive case
+    double myd = node.center[node.splitaxis] - params[threadNum].p[node.splitaxis];
+    if (myd >= 0.0) {
+      node.child1->_FindClosestKNNRange(pts, threadNum);
+      if (sqr(myd) < params[threadNum].closest_d2) {
+        node.child2->_FindClosestKNNRange(pts, threadNum);
+      }
+    } else {
+      node.child2->_FindClosestKNNRange(pts, threadNum);
+      if (sqr(myd) < params[threadNum].closest_d2) {
+        node.child1->_FindClosestKNNRange(pts, threadNum);
+      }
+    }
+  }
+
 };
 
 #endif

@@ -45,6 +45,7 @@ public:
   virtual ~KDtree();
 
   virtual double *FindClosest(double *_p, double maxdist2, int threadNum = 0) const;
+  virtual void FindClosestKNNRange(double *_p, double maxdist2, std::vector<double *>& closest_list, int knn = -1, int threadNum = 0) const;
 };
 
 #endif

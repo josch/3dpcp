@@ -7,6 +7,8 @@
 #ifndef __KDPARAMS_H__
 #define __KDPARAMS_H__
 
+#include <vector>
+
 /**
  * @brief Contains the intermediate (static) values of a k-d tree or a cached k-d tree
  * 
@@ -21,6 +23,16 @@ public:
    * pointer to the closest point.  size = 4 bytes of 32 bit machines 
    */
   double *closest;
+
+  /**
+   * list of closest points
+   */
+  std::vector<double *> closest_list;
+
+  /**
+   * k in kNN
+   */
+  int k;
 
   /** 
    * distance to the closest point. size = 8 bytes 
