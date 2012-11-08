@@ -80,7 +80,7 @@ void validate(boost::any& v, const std::vector<std::string>& values,
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
         int &maxDist, int &minDist, search_method &searchMethod, 
-        int &knn, double &range)
+        int &knn, double &range, size_t &maxpoints)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -115,6 +115,8 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "select the k in kNN search")
         ("range,R", po::value<double>(&range),
          "select the range in range search")
+        ("maxpoints,p", po::value<size_t>(&maxpoints),
+         "maximum number of points to investigate")
         ;
 
     po::options_description hidden("Hidden options");
@@ -159,27 +161,27 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateNeighborsANN(vector<Point> &points, int k, vector<vector<int>> &neighbors) {
-    cout<<"Total number of points: "<<points.size()<<endl;
-    ANNpointArray pa = annAllocPts(points.size(), 3);
-    for (size_t i=0; i<points.size(); ++i) {
-        pa[i][0] = points[i].x;
-        pa[i][1] = points[i].y;
-        pa[i][2] = points[i].z;
+void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector<Point>> &neighbors) {
+    ANNpointArray pa = annAllocPts(nPoints, 3);
+    for (size_t i=0; i<nPoints; ++i) {
+        pa[i][0] = points[i][0];
+        pa[i][1] = points[i][1];
+        pa[i][2] = points[i][2];
     }
 
-    ANNkd_tree t(pa, points.size(), 3);
+    ANNkd_tree t(pa, nPoints, 3);
     ANNidxArray nidx = new ANNidx[k];
     ANNdistArray d = new ANNdist[k];
 
-    neighbors.reserve(points.size());
+    neighbors.reserve(nPoints);
 
-    for (size_t i=0; i<points.size(); ++i) {
+    for (size_t i=0; i<nPoints; ++i) {
         ANNpoint p = pa[i];
-        t.annkSearch(p, k, nidx, d, 0.0);
-        vector<int> n;
-        for (int j=0; j<k; ++j) {
-            n.push_back(nidx[j]);
+        int m = t.annkFRSearch(p, 20.0, k, nidx, d, 0.0);
+        vector<Point> n;
+        n.reserve(m);
+        for (int j=0; j<m; ++j) {
+            n.push_back(Point(points[nidx[j]][0],points[nidx[j]][1],points[nidx[j]][2]));
         }
         neighbors.push_back(n);
     }
@@ -187,14 +189,20 @@ void calculateNeighborsANN(vector<Point> &points, int k, vector<vector<int>> &ne
     annDeallocPts(pa);
 }
 
-void calculate kdTree() {
+void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<Point>> &neighbors) {
     /// KDtree range search
     KDtree kd_tree(points, nPoints);
-    vector<double *> closest;
-    kd_tree.FindClosestKNNRange(points[0], 20.0, closest, 10);
-    cout << "KDtree neighbors: " << closest.size() << endl;
-    for (size_t i = 0; i < closest.size(); ++i) {
-        cout << closest[i][0] << " " << closest[i][1] << " " << closest[i][2] << endl;
+
+    neighbors.reserve(nPoints);
+
+    for (size_t i=0; i<nPoints; ++i) {
+        vector<double *> closest;
+        vector<Point> n;
+        kd_tree.FindClosestKNNRange(points[i], 20.0, closest, k);
+        for (size_t i=0; i<closest.size(); i++) {
+            n.push_back(Point(closest[i][0],closest[i][1],closest[i][2]));
+        }
+        neighbors.push_back(n);
     }
 }
 
@@ -210,9 +218,10 @@ int main(int argc, char **argv)
     search_method searchMethod;
     int knn;
     double range;
+    size_t maxpoints;
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
-            minDist, searchMethod, knn, range);
+            minDist, searchMethod, knn, range, maxpoints);
 
     for (int iter = start; iter <= end; iter++) {
         Scan::openDirectory(scanserver, dir, iotype, iter, iter);
@@ -225,29 +234,39 @@ int main(int argc, char **argv)
             scan->setRangeFilter(maxDist, minDist);
 
             DataXYZ xyz(scan->get("xyz"));
-            vector<Point> points;
-            vector<vector<int>> neighbors;
+            vector<vector<Point>> neighbors1;
+            vector<vector<Point>> neighbors2;
 
-            points.reserve(xyz.size());
+            size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
 
-            for(size_t j = 0; j < xyz.size(); j++) {
-                points.push_back(Point(xyz[j][0], xyz[j][1], xyz[j][2]));
+            double **points = new double*[maxp];
+            for (unsigned int i = 0; i < maxp; ++i) {
+                points[i] = new double[3];
+                for (unsigned int j = 0; j < 3; ++j) 
+                    points[i][j] = xyz[i][j];
             }
 
-            calculateNeighborsANN(points, 5, neighbors);
+            calculateNeighborsANN(points, maxp, knn, neighbors1);
+            calculateKdTree(points, maxp, knn, neighbors2);
 
-            if (points.size() != neighbors.size()) {
-                cerr << "unequal number of points and neighbors" << endl;
-                exit(-1);
-            }
-
-            for (size_t j = 0; j < points.size(); ++j) {
-                cout << j << ":";
-                for (size_t m = 0; m < neighbors[j].size(); ++m) {
-                    cout << " " << neighbors[j][m];
+            for (size_t j = 0; j < maxp; ++j) {
+                cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
+                for (size_t m = 0; m < neighbors1[j].size(); ++m) {
+                    cout << " <" << neighbors1[j][m].x << ","<< neighbors1[j][m].y << "," << neighbors1[j][m].z << ">";
                 }
                 cout << endl;
+                cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
+                for (size_t m = 0; m < neighbors2[j].size(); ++m) {
+                    cout << " <" << neighbors2[j][m].x << ","<< neighbors2[j][m].y << "," << neighbors2[j][m].z << ">";
+                }
+                cout << endl;
+                cout << endl;
             }
+
+            for (unsigned int i = 0; i < maxp; ++i) {
+                delete []points[i];
+            }
+            delete []points;
         }
         Scan::closeDirectory();
     }
