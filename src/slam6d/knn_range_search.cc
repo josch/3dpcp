@@ -196,12 +196,8 @@ void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<doubl
     neighbors.reserve(nPoints);
 
     for (size_t i=0; i<nPoints; ++i) {
-        vector<double *> closest;
         vector<double *> n;
-        kd_tree.FindClosestKNNRange(points[i], 20.0, closest, k);
-        for (size_t i=0; i<closest.size(); i++) {
-            n.push_back(closest[i]);
-        }
+        kd_tree.FindClosestKNNRange(points[i], 20.0, n, k);
         neighbors.push_back(n);
     }
 }
