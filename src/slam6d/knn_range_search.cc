@@ -235,6 +235,8 @@ int main(int argc, char **argv)
 
             size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
 
+            cerr << "considering " << maxp << " datapoints" << endl;
+
             double **points = new double*[maxp];
             for (unsigned int i = 0; i < maxp; ++i) {
                 points[i] = new double[3];
@@ -246,16 +248,36 @@ int main(int argc, char **argv)
             calculateKdTree(points, maxp, knn, neighbors2);
 
             for (size_t j = 0; j < maxp; ++j) {
-                cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
+                bool fail = false;
+                cout << j;
                 for (size_t m = 0; m < neighbors1[j].size(); ++m) {
-                    cout << " <" << neighbors1[j][m][0] << "," << neighbors1[j][m][1] << "," << neighbors1[j][m][2] << ">";
+                    bool found = false;
+                    for (size_t n = 0; n < neighbors2[j].size(); ++n) {
+                        if (neighbors1[j][m] == neighbors2[j][n]) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        cout << " (1 not 2)";
+                        fail = true;
+                    }
                 }
-                cout << endl;
-                cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
                 for (size_t m = 0; m < neighbors2[j].size(); ++m) {
-                    cout << " <" << neighbors1[j][m][0] << "," << neighbors1[j][m][1] << "," << neighbors1[j][m][2] << ">";
+                    bool found = false;
+                    for (size_t n = 0; n < neighbors1[j].size(); ++n) {
+                        if (neighbors1[j][n] == neighbors2[j][m]) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        cout << " (2 not 1)";
+                        fail = true;
+                    }
                 }
-                cout << endl;
+                if (!fail)
+                    cout << " success!";
                 cout << endl;
             }
 
