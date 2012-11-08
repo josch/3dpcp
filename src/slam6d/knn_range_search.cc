@@ -161,7 +161,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector<Point>> &neighbors) {
+void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
     ANNpointArray pa = annAllocPts(nPoints, 3);
     for (size_t i=0; i<nPoints; ++i) {
         pa[i][0] = points[i][0];
@@ -178,10 +178,10 @@ void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector
     for (size_t i=0; i<nPoints; ++i) {
         ANNpoint p = pa[i];
         int m = t.annkFRSearch(p, 20.0, k, nidx, d, 0.0);
-        vector<Point> n;
+        vector<double *> n;
         n.reserve(m);
         for (int j=0; j<m; ++j) {
-            n.push_back(Point(points[nidx[j]][0],points[nidx[j]][1],points[nidx[j]][2]));
+            n.push_back(points[nidx[j]]);
         }
         neighbors.push_back(n);
     }
@@ -189,7 +189,7 @@ void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector
     annDeallocPts(pa);
 }
 
-void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<Point>> &neighbors) {
+void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
     /// KDtree range search
     KDtree kd_tree(points, nPoints);
 
@@ -197,10 +197,10 @@ void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<Point
 
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> closest;
-        vector<Point> n;
+        vector<double *> n;
         kd_tree.FindClosestKNNRange(points[i], 20.0, closest, k);
         for (size_t i=0; i<closest.size(); i++) {
-            n.push_back(Point(closest[i][0],closest[i][1],closest[i][2]));
+            n.push_back(closest[i]);
         }
         neighbors.push_back(n);
     }
@@ -234,8 +234,8 @@ int main(int argc, char **argv)
             scan->setRangeFilter(maxDist, minDist);
 
             DataXYZ xyz(scan->get("xyz"));
-            vector<vector<Point>> neighbors1;
-            vector<vector<Point>> neighbors2;
+            vector<vector<double *>> neighbors1;
+            vector<vector<double *>> neighbors2;
 
             size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
 
@@ -252,12 +252,12 @@ int main(int argc, char **argv)
             for (size_t j = 0; j < maxp; ++j) {
                 cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
                 for (size_t m = 0; m < neighbors1[j].size(); ++m) {
-                    cout << " <" << neighbors1[j][m].x << ","<< neighbors1[j][m].y << "," << neighbors1[j][m].z << ">";
+                    cout << " <" << neighbors1[j][m][0] << "," << neighbors1[j][m][1] << "," << neighbors1[j][m][2] << ">";
                 }
                 cout << endl;
                 cout << "<" << points[j][0] << "," << points[j][1] << "," << points[j][2] << ">:";
                 for (size_t m = 0; m < neighbors2[j].size(); ++m) {
-                    cout << " <" << neighbors2[j][m].x << ","<< neighbors2[j][m].y << "," << neighbors2[j][m].z << ">";
+                    cout << " <" << neighbors1[j][m][0] << "," << neighbors1[j][m][1] << "," << neighbors1[j][m][2] << ">";
                 }
                 cout << endl;
                 cout << endl;
