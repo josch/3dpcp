@@ -12,6 +12,7 @@
 #include "slam6d/point.h"
 #include "slam6d/scan.h"
 #include "slam6d/globals.icc"
+#include "slam6d/kd.h"
 
 #include <string>
 using std::string;
@@ -186,6 +187,18 @@ void calculateNeighborsANN(vector<Point> &points, int k, vector<vector<int>> &ne
     annDeallocPts(pa);
 }
 
+void calculate kdTree() {
+    /// KDtree range search
+    KDtree kd_tree(points, nPoints);
+    vector<double *> closest;
+    kd_tree.FindClosestKNNRange(points[0], 20.0, closest, 10);
+    cout << "KDtree neighbors: " << closest.size() << endl;
+    for (size_t i = 0; i < closest.size(); ++i) {
+        cout << closest[i][0] << " " << closest[i][1] << " " << closest[i][2] << endl;
+    }
+}
+
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -200,8 +213,6 @@ int main(int argc, char **argv)
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
             minDist, searchMethod, knn, range);
-
-    cout << "Using: " << searchMethod << " knn: " << knn << " range: " << range << endl;
 
     for (int iter = start; iter <= end; iter++) {
         Scan::openDirectory(scanserver, dir, iotype, iter, iter);
