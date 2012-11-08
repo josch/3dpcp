@@ -169,23 +169,20 @@ int main(int argc, char **argv)
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
             minDist, searchMethod, knn, range);
 
-    Scan::openDirectory(scanserver, dir, iotype, start, end);
-
-    if(Scan::allScans.size() == 0) {
-        cerr << "No scans found. Did you use the correct format?" << endl;
-        exit(-1);
-    }
-
     cout << "Using: " << searchMethod << " knn: " << knn << " range: " << range << endl;
 
-    for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
-        Scan* scan = *it;
-        // apply optional filtering
-        scan->setRangeFilter(maxDist, minDist);
-
+    for (int iter = start; iter <= end; iter++) {
+        Scan::openDirectory(scanserver, dir, iotype, iter, iter);
+        if(Scan::allScans.size() == 0) {
+            cerr << "No scans found. Did you use the correct format?" << endl;
+            exit(-1);
+        }
+        for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
+            Scan* scan = *it;
+            scan->setRangeFilter(maxDist, minDist);
+        }
+        Scan::closeDirectory();
     }
-
-    Scan::closeDirectory();
 
     return 0;
 }
