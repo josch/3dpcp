@@ -150,8 +150,40 @@ void parse_options(int argc, char **argv, int &start, int &end,
     search_option_dependency(vm, RANGE, "range");
     search_option_conflict(vm, RANGE, "knn");
 
+    if (vm["start"].as<int>() > vm["end"].as<int>()) {
+        throw std::runtime_error ("--end must be bigger or equal --start");
+    }
+
     // add trailing slash to directory if not present yet
     if (dir[dir.length()-1] != '/') dir = dir + "/";
+}
+
+void calculateNeighborsANN(vector<Point> &points, int k, vector<vector<int>> &neighbors) {
+    cout<<"Total number of points: "<<points.size()<<endl;
+    ANNpointArray pa = annAllocPts(points.size(), 3);
+    for (size_t i=0; i<points.size(); ++i) {
+        pa[i][0] = points[i].x;
+        pa[i][1] = points[i].y;
+        pa[i][2] = points[i].z;
+    }
+
+    ANNkd_tree t(pa, points.size(), 3);
+    ANNidxArray nidx = new ANNidx[k];
+    ANNdistArray d = new ANNdist[k];
+
+    neighbors.reserve(points.size());
+
+    for (size_t i=0; i<points.size(); ++i) {
+        ANNpoint p = pa[i];
+        t.annkSearch(p, k, nidx, d, 0.0);
+        vector<int> n;
+        for (int j=0; j<k; ++j) {
+            n.push_back(nidx[j]);
+        }
+        neighbors.push_back(n);
+    }
+
+    annDeallocPts(pa);
 }
 
 int main(int argc, char **argv)
@@ -180,6 +212,31 @@ int main(int argc, char **argv)
         for(ScanVector::iterator it = Scan::allScans.begin(); it != Scan::allScans.end(); ++it) {
             Scan* scan = *it;
             scan->setRangeFilter(maxDist, minDist);
+
+            DataXYZ xyz(scan->get("xyz"));
+            vector<Point> points;
+            vector<vector<int>> neighbors;
+
+            points.reserve(xyz.size());
+
+            for(size_t j = 0; j < xyz.size(); j++) {
+                points.push_back(Point(xyz[j][0], xyz[j][1], xyz[j][2]));
+            }
+
+            calculateNeighborsANN(points, 5, neighbors);
+
+            if (points.size() != neighbors.size()) {
+                cerr << "unequal number of points and neighbors" << endl;
+                exit(-1);
+            }
+
+            for (size_t j = 0; j < points.size(); ++j) {
+                cout << j << ":";
+                for (size_t m = 0; m < neighbors[j].size(); ++m) {
+                    cout << " " << neighbors[j][m];
+                }
+                cout << endl;
+            }
         }
         Scan::closeDirectory();
     }
