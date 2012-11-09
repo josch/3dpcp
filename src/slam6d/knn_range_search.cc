@@ -162,7 +162,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+void calculateKnnANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
     ANNpointArray pa = annAllocPts(nPoints, 3);
     for (size_t i=0; i<nPoints; ++i) {
         pa[i][0] = points[i][0];
@@ -201,7 +201,10 @@ void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector
     annDeallocPts(pa);
 }
 
-void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+void calculateRangeANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+}
+
+void calculateKnnKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
     /// KDtree range search
     KDtree kd_tree(points, nPoints);
 
@@ -220,6 +223,8 @@ void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<doubl
     }
 }
 
+void calculateRangeKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+}
 
 int main(int argc, char **argv)
 {
@@ -262,8 +267,19 @@ int main(int argc, char **argv)
                     points[i][j] = xyz[i][j];
             }
 
-            calculateNeighborsANN(points, maxp, knn, neighborsANN);
-            calculateKdTree(points, maxp, knn, neighborsKD);
+            switch (searchMethod) {
+                case KNN:
+                    calculateKnnANN(points, maxp, knn, neighborsANN);
+                    calculateKnnKdTree(points, maxp, knn, neighborsKD);
+                    break;
+                case RANGE:
+                    calculateRangeANN(points, maxp, knn, neighborsANN);
+                    calculateRangeKdTree(points, maxp, knn, neighborsKD);
+                    break;
+                default:
+                    throw std::runtime_error ("search method not implemented");
+                    break;
+            }
 
             double epsilon = 1e-5;
 
