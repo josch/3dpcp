@@ -138,9 +138,13 @@ void calculateANN(double **points, size_t nPoints, int k, double range, vector<v
         ANNpoint p = pa[i];
         int m = t.annkFRSearch(p, sqradius, 0, NULL, NULL, 0.0);
 
+        // make sure enough space is allocated but at least k
         m = m < k ? k : m;
         ANNidxArray nidx = new ANNidx[m];
         ANNdistArray d = new ANNdist[m];
+
+        // if k is zero, do range search and set k to m
+        if (k == 0) k = m;
 
         t.annkFRSearch(p, sqradius, k, nidx, d, 0.0);
         vector<double *> n;
