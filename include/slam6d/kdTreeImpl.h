@@ -242,7 +242,7 @@ protected:
       for (int i = 0; i < npts; i++) {
         double myd2 = Dist2(params[threadNum].p, point(pts, leaf.p[i]));
         if (myd2 < params[threadNum].closest_d2) {
-          if (params[threadNum].k < 0) {
+          if (params[threadNum].k <= 0) {
             /// use range search
             params[threadNum].closest_list.push_back( point(pts, leaf.p[i]) );
           } else {
