@@ -18,6 +18,7 @@
 using std::string;
 
 #include <iostream>
+#include <fstream>
 using std::cout;
 using std::endl;
 using std::vector;
@@ -188,8 +189,8 @@ void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector
             if (nidx[j] == ANN_NULL_IDX) {
                 break; // ANN_NULL_IDX marks the end
             }
-            if (nidx[j] >= nPoints) {
-                cerr << "nidx[j] >= nPoints" << endl;
+            if (nidx[j] >= (int) nPoints) {
+                cerr << endl << "nidx[j] >= nPoints" << endl;
                 continue;
             }
             n.push_back(points[nidx[j]]);
@@ -212,7 +213,7 @@ void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<doubl
         // check distances of found neighbors
         for (size_t j = 0; j < n.size(); ++j) {
             if (sqrt(Dist2(points[i], n[j])) > 20.0) {
-                cerr << "neighbor distance greater than radius" << endl;
+                cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
         neighbors.push_back(n);
@@ -247,8 +248,8 @@ int main(int argc, char **argv)
             scan->setRangeFilter(maxDist, minDist);
 
             DataXYZ xyz(scan->get("xyz"));
-            vector<vector<double *>> neighbors1;
-            vector<vector<double *>> neighbors2;
+            vector<vector<double *>> neighborsANN;
+            vector<vector<double *>> neighborsKD;
 
             size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
 
@@ -261,38 +262,48 @@ int main(int argc, char **argv)
                     points[i][j] = xyz[i][j];
             }
 
-            calculateNeighborsANN(points, maxp, knn, neighbors1);
-            calculateKdTree(points, maxp, knn, neighbors2);
+            calculateNeighborsANN(points, maxp, knn, neighborsANN);
+            calculateKdTree(points, maxp, knn, neighborsKD);
+
+            double epsilon = 1e-5;
+
+            ofstream fout("output");
 
             for (size_t j = 0; j < maxp; ++j) {
                 bool fail = false;
                 cout << j;
-                for (size_t m = 0; m < neighbors1[j].size(); ++m) {
+                fout << "Point " << j << ": " << points[j][0] << " " << points[j][1] << " " << points[j][2] << endl;
+                fout << "--------------------------------------------------" << endl;
+                fout << "ANN neighbors: " << endl;
+                for (size_t m = 0; m < neighborsANN[j].size(); ++m) {
+                    fout << neighborsANN[j][m][0] << " " << neighborsANN[j][m][1] << " " << neighborsANN[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsANN[j][m])) << endl;
                     bool found = false;
-                    for (size_t n = 0; n < neighbors2[j].size(); ++n) {
-                        if (neighbors1[j][m] == neighbors2[j][n]) {
+                    for (size_t n = 0; n < neighborsKD[j].size(); ++n) {
+                        if (fabs(neighborsANN[j][m] - neighborsKD[j][n]) < epsilon) {
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
                         // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], neighbors1[j][m]));
+                        double d = sqrt(Dist2(points[j], neighborsANN[j][m]));
                         cout << " (ann not kd: " << d << ")";
                         fail = true;
                     }
                 }
-                for (size_t m = 0; m < neighbors2[j].size(); ++m) {
+                fout << "KD neighbors: " << endl;
+                for (size_t m = 0; m < neighborsKD[j].size(); ++m) {
+                    fout << neighborsKD[j][m][0] << " " << neighborsKD[j][m][1] << " " << neighborsKD[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsKD[j][m])) << endl;
                     bool found = false;
-                    for (size_t n = 0; n < neighbors1[j].size(); ++n) {
-                        if (neighbors1[j][n] == neighbors2[j][m]) {
+                    for (size_t n = 0; n < neighborsANN[j].size(); ++n) {
+                        if (fabs(neighborsANN[j][n] - neighborsKD[j][m]) < epsilon) {
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
                         // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], neighbors2[j][m]));
+                        double d = sqrt(Dist2(points[j], neighborsKD[j][m]));
                         cout << " (kd not ann: " << d << ")";
                         fail = true;
                     }
@@ -300,8 +311,10 @@ int main(int argc, char **argv)
                 if (!fail)
                     cout << " success!";
                 cout << endl;
+                fout << endl << endl << endl;
             }
-
+            fout.flush();
+            fout.close();
             for (unsigned int i = 0; i < maxp; ++i) {
                 delete []points[i];
             }
