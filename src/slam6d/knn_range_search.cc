@@ -226,8 +226,6 @@ int main(int argc, char **argv)
             calculateANN(points, maxp, knn, range, neighborsANN);
             calculateKdTree(points, maxp, knn, range, neighborsKD);
 
-            double epsilon = 1e-5;
-
             ofstream fout("output");
 
             for (size_t j = 0; j < maxp; ++j) {
@@ -240,7 +238,7 @@ int main(int argc, char **argv)
                     fout << neighborsANN[j][m][0] << " " << neighborsANN[j][m][1] << " " << neighborsANN[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsANN[j][m])) << endl;
                     bool found = false;
                     for (size_t n = 0; n < neighborsKD[j].size(); ++n) {
-                        if (fabs(neighborsANN[j][m] - neighborsKD[j][n]) < epsilon) {
+                        if (neighborsANN[j][m] == neighborsKD[j][n]) {
                             found = true;
                             break;
                         }
@@ -257,7 +255,7 @@ int main(int argc, char **argv)
                     fout << neighborsKD[j][m][0] << " " << neighborsKD[j][m][1] << " " << neighborsKD[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsKD[j][m])) << endl;
                     bool found = false;
                     for (size_t n = 0; n < neighborsANN[j].size(); ++n) {
-                        if (fabs(neighborsANN[j][n] - neighborsKD[j][m]) < epsilon) {
+                        if (neighborsANN[j][n] == neighborsKD[j][m]) {
                             found = true;
                             break;
                         }
