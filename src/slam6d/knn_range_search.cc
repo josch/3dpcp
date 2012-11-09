@@ -30,26 +30,6 @@ using std::vector;
 #include <boost/filesystem/fstream.hpp>
 namespace po = boost::program_options;
 
-enum search_method {KNN, RANGE};
-
-void search_option_dependency(const po::variables_map & vm, search_method ntype, const char *option)
-{
-    if (vm.count("search") && vm["search"].as<search_method>() == ntype) {
-        if (!vm.count(option)) {
-            throw std::logic_error (string("this search method needs ")+option+" to be set");
-        }
-    }
-}
-
-void search_option_conflict(const po::variables_map & vm, search_method ntype, const char *option)
-{
-    if (vm.count("search") && vm["search"].as<search_method>() == ntype) {
-        if (vm.count(option)) {
-            throw std::logic_error (string("this search method is incompatible with ")+option);
-        }
-    }
-}
-
 /*
  * validates input type specification
  */
@@ -65,23 +45,12 @@ void validate(boost::any& v, const std::vector<std::string>& values,
     }
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values,
-        search_method*, int) {
-    if (values.size() == 0)
-        throw std::runtime_error("Invalid model specification");
-    string arg = values.at(0);
-    if(strcasecmp(arg.c_str(), "KNN") == 0) v = KNN;
-    else if(strcasecmp(arg.c_str(), "RANGE") == 0) v = RANGE;
-    else throw std::runtime_error(std::string("search method ") + arg + std::string(" is unknown"));
-}
-
 /*
  * parse commandline options, fill arguments
  */
 void parse_options(int argc, char **argv, int &start, int &end,
         bool &scanserver, string &dir, IOType &iotype,
-        int &maxDist, int &minDist, search_method &searchMethod, 
-        int &knn, double &range, size_t &maxpoints)
+        int &maxDist, int &minDist, int &knn, double &range, size_t &maxpoints)
 {
     po::options_description generic("Generic options");
     generic.add_options()
@@ -108,14 +77,10 @@ void parse_options(int argc, char **argv, int &start, int &end,
 
     po::options_description search("Search options");
     search.add_options()
-        ("search,a", po::value<search_method>(&searchMethod)->default_value(KNN),
-         "choose the search method:\n"
-         "KNN -- use kNN search\n"
-         "RANGE -- use range search\n")
-        ("knn,K", po::value<int>(&knn),
-         "select the k in kNN search")
-        ("range,R", po::value<double>(&range),
-         "select the range in range search")
+        ("knn,K", po::value<int>(&knn)->default_value(0),
+         "if greater than 0 do knn search, otherwise range search")
+        ("range,R", po::value<double>(&range)->default_value(20.0),
+         "select the max range for knn and range search")
         ("maxpoints,p", po::value<size_t>(&maxpoints),
          "maximum number of points to investigate")
         ;
@@ -148,12 +113,6 @@ void parse_options(int argc, char **argv, int &start, int &end,
         exit(0);
     }
 
-    search_option_dependency(vm, KNN, "knn");
-    search_option_conflict(vm, KNN, "range");
-
-    search_option_dependency(vm, RANGE, "range");
-    search_option_conflict(vm, RANGE, "knn");
-
     if (vm["start"].as<int>() > vm["end"].as<int>()) {
         throw std::runtime_error ("--end must be bigger or equal --start");
     }
@@ -162,7 +121,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateKnnANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+void calculateANN(double **points, size_t nPoints, int k, double range, vector<vector<double *>> &neighbors) {
     ANNpointArray pa = annAllocPts(nPoints, 3);
     for (size_t i=0; i<nPoints; ++i) {
         pa[i][0] = points[i][0];
@@ -173,7 +132,7 @@ void calculateKnnANN(double **points, size_t nPoints, int k, vector<vector<doubl
     ANNkd_tree t(pa, nPoints, 3);
     neighbors.reserve(nPoints);
 
-    double sqradius = 20.0*20.0;
+    double sqradius = sqr(range);
 
     for (size_t i=0; i<nPoints; ++i) {
         ANNpoint p = pa[i];
@@ -201,10 +160,7 @@ void calculateKnnANN(double **points, size_t nPoints, int k, vector<vector<doubl
     annDeallocPts(pa);
 }
 
-void calculateRangeANN(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
-}
-
-void calculateKnnKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
+void calculateKdTree(double **points, size_t nPoints, int k, double range, vector<vector<double *>> &neighbors) {
     /// KDtree range search
     KDtree kd_tree(points, nPoints);
 
@@ -223,9 +179,6 @@ void calculateKnnKdTree(double **points, size_t nPoints, int k, vector<vector<do
     }
 }
 
-void calculateRangeKdTree(double **points, size_t nPoints, int k, vector<vector<double *>> &neighbors) {
-}
-
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -234,13 +187,12 @@ int main(int argc, char **argv)
     int maxDist, minDist;
     string dir;
     IOType iotype;
-    search_method searchMethod;
     int knn;
     double range;
     size_t maxpoints;
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
-            minDist, searchMethod, knn, range, maxpoints);
+            minDist, knn, range, maxpoints);
 
     for (int iter = start; iter <= end; iter++) {
         Scan::openDirectory(scanserver, dir, iotype, iter, iter);
@@ -267,19 +219,8 @@ int main(int argc, char **argv)
                     points[i][j] = xyz[i][j];
             }
 
-            switch (searchMethod) {
-                case KNN:
-                    calculateKnnANN(points, maxp, knn, neighborsANN);
-                    calculateKnnKdTree(points, maxp, knn, neighborsKD);
-                    break;
-                case RANGE:
-                    calculateRangeANN(points, maxp, knn, neighborsANN);
-                    calculateRangeKdTree(points, maxp, knn, neighborsKD);
-                    break;
-                default:
-                    throw std::runtime_error ("search method not implemented");
-                    break;
-            }
+            calculateANN(points, maxp, knn, range, neighborsANN);
+            calculateKdTree(points, maxp, knn, range, neighborsKD);
 
             double epsilon = 1e-5;
 
