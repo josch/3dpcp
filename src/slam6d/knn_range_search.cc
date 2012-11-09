@@ -269,6 +269,16 @@ int main(int argc, char **argv)
                         fail = true;
                     }
                 }
+                // if there is no fail yet, compare the neighbor vector sizes
+                // to make sure that the lists actually contain the same and
+                // there are no duplicates
+                if (!fail) {
+                    if (neighborsANN[j].size() != neighborsKD[j].size()) {
+                        cout << " " << neighborsANN[j].size() << " ANN neighbors ";
+                        cout << "but " << neighborsKD[j].size() << " kd neighbors";
+                        fail = true;
+                    }
+                }
                 if (!fail)
                     cout << " success!";
                 cout << endl;
