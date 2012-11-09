@@ -172,10 +172,10 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, vecto
 
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
-        kd_tree.FindClosestKNNRange(points[i], 20.0, n, k);
+        kd_tree.FindClosestKNNRange(points[i], sqr(range), n, k);
         // check distances of found neighbors
         for (size_t j = 0; j < n.size(); ++j) {
-            if (sqrt(Dist2(points[i], n[j])) > 20.0) {
+            if (sqrt(Dist2(points[i], n[j])) > range) {
                 cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
