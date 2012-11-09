@@ -170,17 +170,28 @@ void calculateNeighborsANN(double **points, size_t nPoints, int k, vector<vector
     }
 
     ANNkd_tree t(pa, nPoints, 3);
-    ANNidxArray nidx = new ANNidx[k];
-    ANNdistArray d = new ANNdist[k];
-
     neighbors.reserve(nPoints);
+
+    double sqradius = 20.0*20.0;
 
     for (size_t i=0; i<nPoints; ++i) {
         ANNpoint p = pa[i];
-        int m = t.annkFRSearch(p, 20.0, k, nidx, d, 0.0);
+        int m = t.annkFRSearch(p, sqradius, 0, NULL, NULL, 0.0);
+
+        m = m < k ? k : m;
+        ANNidxArray nidx = new ANNidx[m];
+        ANNdistArray d = new ANNdist[m];
+
+        t.annkFRSearch(p, sqradius, k, nidx, d, 0.0);
         vector<double *> n;
-        n.reserve(m);
-        for (int j=0; j<m; ++j) {
+        for (int j=0; j<k; ++j) {
+            if (nidx[j] == ANN_NULL_IDX) {
+                break; // ANN_NULL_IDX marks the end
+            }
+            if (nidx[j] >= nPoints) {
+                cerr << "nidx[j] >= nPoints" << endl;
+                continue;
+            }
             n.push_back(points[nidx[j]]);
         }
         neighbors.push_back(n);
