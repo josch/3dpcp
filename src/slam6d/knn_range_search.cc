@@ -121,7 +121,9 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateANN(double **points, size_t nPoints, int k, double range, vector<vector<double *>> &neighbors) {
+void calculateANN(double **points, size_t nPoints, int knn, double range, vector<vector<double *>> &neighbors) {
+    int k;
+
     ANNpointArray pa = annAllocPts(nPoints, 3);
     for (size_t i=0; i<nPoints; ++i) {
         pa[i][0] = points[i][0];
@@ -138,13 +140,16 @@ void calculateANN(double **points, size_t nPoints, int k, double range, vector<v
         ANNpoint p = pa[i];
         int m = t.annkFRSearch(p, sqradius, 0, NULL, NULL, 0.0);
 
-        // make sure enough space is allocated but at least k
-        m = m < k ? k : m;
+        // make sure enough space is allocated but at least knn
+        m = m < knn ? knn : m;
         ANNidxArray nidx = new ANNidx[m];
         ANNdistArray d = new ANNdist[m];
 
         // if k is zero, do range search and set k to m
-        if (k == 0) k = m;
+        if (knn == 0)
+            k = m;
+        else
+            k = knn;
 
         t.annkFRSearch(p, sqradius, k, nidx, d, 0.0);
         vector<double *> n;
