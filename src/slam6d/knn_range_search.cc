@@ -209,6 +209,12 @@ void calculateKdTree(double **points, size_t nPoints, int k, vector<vector<doubl
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
         kd_tree.FindClosestKNNRange(points[i], 20.0, n, k);
+        // check distances of found neighbors
+        for (size_t j = 0; j < n.size(); ++j) {
+            if (sqrt(Dist2(points[i], n[j])) > 20.0) {
+                cerr << "neighbor distance greater than radius" << endl;
+            }
+        }
         neighbors.push_back(n);
     }
 }
@@ -270,7 +276,9 @@ int main(int argc, char **argv)
                         }
                     }
                     if (!found) {
-                        cout << " (1 not 2)";
+                        // compute distance between point and neighbor
+                        double d = sqrt(Dist2(points[j], neighbors1[j][m]));
+                        cout << " (ann not kd: " << d << ")";
                         fail = true;
                     }
                 }
@@ -283,7 +291,9 @@ int main(int argc, char **argv)
                         }
                     }
                     if (!found) {
-                        cout << " (2 not 1)";
+                        // compute distance between point and neighbor
+                        double d = sqrt(Dist2(points[j], neighbors2[j][m]));
+                        cout << " (kd not ann: " << d << ")";
                         fail = true;
                     }
                 }
