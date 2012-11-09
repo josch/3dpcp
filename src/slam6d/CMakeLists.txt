@@ -72,7 +72,7 @@ SET(SCANLIB_SRCS
   point_type.cc	icp6Dquatscale.cc searchTree.cc     Boctree.cc
   allocator.cc               
   scan.cc           basicScan.cc      managedScan.cc    metaScan.cc
-  io_types.cc       io_utils.cc       pointfilter.cc    knn_range_search.cc
+  io_types.cc       io_utils.cc       pointfilter.cc
   )
 
 if(WITH_METRICS)
