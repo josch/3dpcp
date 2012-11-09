@@ -229,7 +229,16 @@ int main(int argc, char **argv)
             }
 
             calculateANN(points, maxp, knn, range, neighborsANN);
-            calculateKdTree(points, maxp, knn, range, neighborsKD);
+
+            // copy into a new array because somehow calculateKdTree modifies
+            // the information in the array passed to it
+            double **tempp = new double*[maxp];
+            for (unsigned int i = 0; i < maxp; ++i) {
+                tempp[i] = new double[3];
+                for (unsigned int j = 0; j < 3; ++j) 
+                    tempp[i][j] = xyz[i][j];
+            }
+            calculateKdTree(tempp, maxp, knn, range, neighborsKD);
 
             ofstream fout("output");
 
