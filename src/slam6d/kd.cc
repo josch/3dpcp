@@ -72,6 +72,7 @@ double *KDtree::FindClosest(double *_p, double maxdist2, int threadNum) const
 void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& closest_list, int knn, int threadNum) const
 {
   closest_list.clear();
+  params[threadNum].closest_list.clear();
   params[threadNum].closest = 0;
   params[threadNum].closest_d2 = maxdist2;
   params[threadNum].p = _p;
