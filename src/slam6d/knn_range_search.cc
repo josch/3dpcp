@@ -32,6 +32,18 @@ using std::pair;
 #include <boost/filesystem/fstream.hpp>
 namespace po = boost::program_options;
 
+/**
+ * struct used for sorting the neighbor arrays
+ * comparing by distance to the origin point
+ */
+
+struct ComparePoints {
+    double *origin;
+    bool operator() (double* i, double* j) { 
+        return (Dist2(i, origin) <= Dist2(j, origin));
+    }
+} distance_comparison;
+
 /*
  * validates input type specification
  */
@@ -183,6 +195,9 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
                 cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
+        /// sort neighbor vector
+        distance_comparison.origin = points[i];
+        sort(n.begin(), n.end(), distance_comparison);
         neighbors.insert(pair<double*, vector<double *>>(points[i], n));
     }
 }
