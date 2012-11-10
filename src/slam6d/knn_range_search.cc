@@ -239,6 +239,11 @@ int main(int argc, char **argv)
                     points[i][j] = xyz[i][j];
             }
 
+            if (knn < 1)
+                cout << "using range search (within a range of " << range << " cms)" << endl;
+            else
+                cout << "using knn search (within range of " << range << " cms)" << endl;
+
             starttime = GetCurrentTimeInMilliSec();
             calculateANN(points, maxp, knn, range, neighborsANN);
             endtime = GetCurrentTimeInMilliSec() - starttime;

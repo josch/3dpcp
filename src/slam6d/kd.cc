@@ -36,6 +36,19 @@ template<class PointData, class AccessorData, class AccessorFunc>
 KDParams KDTreeImpl<PointData, AccessorData, AccessorFunc>::params[MAX_OPENMP_NUM_THREADS];
 
 /**
+ * struct used for sorting the neighbor arrays
+ * comparing by distance to the origin point
+ */
+
+struct ComparePoints {
+    double *origin;
+    bool operator() (double* i, double* j) { 
+        return (Dist2(i, origin) <= Dist2(j, origin));
+    }
+} distance_comparison;
+
+
+/**
  * Constructor
  *
  * Create a KD tree from the points pointed to by the array pts
@@ -73,10 +86,22 @@ void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& c
 {
   closest_list.clear();
   params[threadNum].closest_list.clear();
+
   params[threadNum].closest = 0;
   params[threadNum].closest_d2 = maxdist2;
   params[threadNum].p = _p;
-  params[threadNum].k = knn;
   _FindClosestKNNRange(Void(), threadNum);
-  closest_list = params[threadNum].closest_list;
+  /// sort neighbor vector
+  distance_comparison.origin = _p;
+  sort(params[threadNum].closest_list.begin(), params[threadNum].closest_list.end(), distance_comparison);
+  if (knn < 1) {
+    /// range search
+    closest_list = params[threadNum].closest_list;
+  } else {
+    /// knn range search
+    for (size_t i = 0; i < params[threadNum].closest_list.size(); ++i)
+      if (Dist2(_p, params[threadNum].closest_list[i]) <= maxdist2 && i < knn)
+        closest_list.push_back(params[threadNum].closest_list[i]);
+  }
+
 }

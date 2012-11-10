@@ -29,11 +29,6 @@ public:
    */
   std::vector<double *> closest_list;
 
-  /**
-   * k in kNN
-   */
-  int k;
-
   /** 
    * distance to the closest point. size = 8 bytes 
    */
