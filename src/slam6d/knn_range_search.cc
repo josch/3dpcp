@@ -83,8 +83,8 @@ void parse_options(int argc, char **argv, int &start, int &end,
          "if greater than 0 do knn search, otherwise range search")
         ("range,R", po::value<double>(&range)->default_value(20.0),
          "select the max range for knn and range search")
-        ("maxpoints,p", po::value<size_t>(&maxpoints),
-         "maximum number of points to investigate")
+        ("maxpoints,p", po::value<size_t>(&maxpoints)->default_value(0),
+         "maximum number of points to investigate - 0 means all points")
         ;
 
     po::options_description hidden("Hidden options");
@@ -220,7 +220,14 @@ int main(int argc, char **argv)
             map<double*, vector<double *>> neighborsANN;
             map<double*, vector<double *>> neighborsKD;
 
-            size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
+            size_t maxp;
+            if (maxpoints == 0)
+                maxp = xyz.size();
+            else
+                if (maxpoints > xyz.size())
+                    maxp = xyz.size();
+                else
+                    maxp = maxpoints;
 
             cerr << "considering " << maxp << " datapoints" << endl;
 
