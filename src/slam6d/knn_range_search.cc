@@ -22,6 +22,8 @@ using std::string;
 using std::cout;
 using std::endl;
 using std::vector;
+using std::map;
+using std::pair;
 
 #include <algorithm>
 
@@ -121,7 +123,7 @@ void parse_options(int argc, char **argv, int &start, int &end,
     if (dir[dir.length()-1] != '/') dir = dir + "/";
 }
 
-void calculateANN(double **points, size_t nPoints, int knn, double range, vector<vector<double *>> &neighbors) {
+void calculateANN(double **points, size_t nPoints, int knn, double range, map<double*, vector<double *>> &neighbors) {
     int k;
 
     ANNpointArray pa = annAllocPts(nPoints, 3);
@@ -132,7 +134,6 @@ void calculateANN(double **points, size_t nPoints, int knn, double range, vector
     }
 
     ANNkd_tree t(pa, nPoints, 3);
-    neighbors.reserve(nPoints);
 
     double sqradius = sqr(range);
 
@@ -163,17 +164,15 @@ void calculateANN(double **points, size_t nPoints, int knn, double range, vector
             }
             n.push_back(points[nidx[j]]);
         }
-        neighbors.push_back(n);
+        neighbors.insert(pair<double*, vector<double *>>(points[i], n));
     }
 
     annDeallocPts(pa);
 }
 
-void calculateKdTree(double **points, size_t nPoints, int k, double range, vector<vector<double *>> &neighbors) {
+void calculateKdTree(double **points, size_t nPoints, int k, double range, map<double*, vector<double *>> &neighbors) {
     /// KDtree range search
     KDtree kd_tree(points, nPoints);
-
-    neighbors.reserve(nPoints);
 
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
@@ -184,7 +183,7 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, vecto
                 cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
-        neighbors.push_back(n);
+        neighbors.insert(pair<double*, vector<double *>>(points[i], n));
     }
 }
 
@@ -214,8 +213,12 @@ int main(int argc, char **argv)
             scan->setRangeFilter(maxDist, minDist);
 
             DataXYZ xyz(scan->get("xyz"));
-            vector<vector<double *>> neighborsANN;
-            vector<vector<double *>> neighborsKD;
+
+            // we need a map datatype because KDTree changes the order of its
+            // input. Since we therefor cannot rely on the order we need to
+            // save a direct mapping instead.
+            map<double*, vector<double *>> neighborsANN;
+            map<double*, vector<double *>> neighborsKD;
 
             size_t maxp = maxpoints > xyz.size() ? xyz.size() : maxpoints;
 
@@ -229,16 +232,7 @@ int main(int argc, char **argv)
             }
 
             calculateANN(points, maxp, knn, range, neighborsANN);
-
-            // copy into a new array because somehow calculateKdTree modifies
-            // the information in the array passed to it
-            double **tempp = new double*[maxp];
-            for (unsigned int i = 0; i < maxp; ++i) {
-                tempp[i] = new double[3];
-                for (unsigned int j = 0; j < 3; ++j) 
-                    tempp[i][j] = xyz[i][j];
-            }
-            calculateKdTree(tempp, maxp, knn, range, neighborsKD);
+            calculateKdTree(points, maxp, knn, range, neighborsKD);
 
             ofstream fout("output");
 
@@ -248,35 +242,37 @@ int main(int argc, char **argv)
                 fout << "Point " << j << ": " << points[j][0] << " " << points[j][1] << " " << points[j][2] << endl;
                 fout << "--------------------------------------------------" << endl;
                 fout << "ANN neighbors: " << endl;
-                for (size_t m = 0; m < neighborsANN[j].size(); ++m) {
-                    fout << neighborsANN[j][m][0] << " " << neighborsANN[j][m][1] << " " << neighborsANN[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsANN[j][m])) << endl;
+                vector<double *> nANN = neighborsANN.find(points[j])->second;
+                vector<double *> nKD = neighborsKD.find(points[j])->second;
+                for (size_t m = 0; m < nANN.size(); ++m) {
+                    fout << nANN[m][0] << " " << nANN[m][1] << " " << nANN[m][2] << "\tDist: " << sqrt(Dist2(points[j], nANN[m])) << endl;
                     bool found = false;
-                    for (size_t n = 0; n < neighborsKD[j].size(); ++n) {
-                        if (neighborsANN[j][m] == neighborsKD[j][n]) {
+                    for (size_t n = 0; n < nKD.size(); ++n) {
+                        if (nANN[m] == nKD[n]) {
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
                         // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], neighborsANN[j][m]));
+                        double d = sqrt(Dist2(points[j], nANN[m]));
                         cout << " (ann not kd: " << d << ")";
                         fail = true;
                     }
                 }
                 fout << "KD neighbors: " << endl;
-                for (size_t m = 0; m < neighborsKD[j].size(); ++m) {
-                    fout << neighborsKD[j][m][0] << " " << neighborsKD[j][m][1] << " " << neighborsKD[j][m][2] << "\tDist: " << sqrt(Dist2(points[j], neighborsKD[j][m])) << endl;
+                for (size_t m = 0; m < nKD.size(); ++m) {
+                    fout << nKD[m][0] << " " << nKD[m][1] << " " << nKD[m][2] << "\tDist: " << sqrt(Dist2(points[j], nKD[m])) << endl;
                     bool found = false;
-                    for (size_t n = 0; n < neighborsANN[j].size(); ++n) {
-                        if (neighborsANN[j][n] == neighborsKD[j][m]) {
+                    for (size_t n = 0; n < nANN.size(); ++n) {
+                        if (nANN[n] == nKD[m]) {
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
                         // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], neighborsKD[j][m]));
+                        double d = sqrt(Dist2(points[j], nKD[m]));
                         cout << " (kd not ann: " << d << ")";
                         fail = true;
                     }
@@ -285,9 +281,9 @@ int main(int argc, char **argv)
                 // to make sure that the lists actually contain the same and
                 // there are no duplicates
                 if (!fail) {
-                    if (neighborsANN[j].size() != neighborsKD[j].size()) {
-                        cout << " " << neighborsANN[j].size() << " ANN neighbors ";
-                        cout << "but " << neighborsKD[j].size() << " kd neighbors";
+                    if (nANN.size() != nKD.size()) {
+                        cout << " " << nANN.size() << " ANN neighbors ";
+                        cout << "but " << nKD.size() << " kd neighbors";
                         fail = true;
                     }
                 }
