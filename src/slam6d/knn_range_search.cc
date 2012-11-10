@@ -171,7 +171,7 @@ void calculateANN(double **points, size_t nPoints, int knn, double range, map<do
 }
 
 void calculateKdTree(double **points, size_t nPoints, int k, double range, map<double*, vector<double *>> &neighbors) {
-    /// KDtree range search
+    /// KDtree search
     KDtree kd_tree(points, nPoints);
 
     for (size_t i=0; i<nPoints; ++i) {
