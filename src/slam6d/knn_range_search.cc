@@ -256,6 +256,8 @@ int main(int argc, char **argv)
 
             ofstream fout("output");
 
+            double epsilon = 0.0001;
+
             for (size_t j = 0; j < maxp; ++j) {
                 bool fail = false;
                 cout << j;
@@ -274,10 +276,25 @@ int main(int argc, char **argv)
                         }
                     }
                     if (!found) {
-                        // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], nANN[m]));
-                        cout << " (ann not kd: " << d << ")";
-                        fail = true;
+                        // at this point it can be that different points with
+                        // equal coordinates were picked - check against that
+                        // by explicitly comparing coordinates with an epsilon
+                        found = false;
+                        for (size_t n = 0; n < nKD.size(); ++n) {
+                            if (fabs(nANN[m][0] - nKD[n][0]) < epsilon
+                                    && fabs(nANN[m][1] - nKD[n][1]) < epsilon
+                                    && fabs(nANN[m][2] - nKD[n][2]) < epsilon) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        // still not found - error
+                        if (!found) {
+                            // compute distance between point and neighbor
+                            double d = sqrt(Dist2(points[j], nANN[m]));
+                            cout << " (ann not kd: " << d << ")";
+                            fail = true;
+                        }
                     }
                 }
                 fout << "KD neighbors: " << endl;
@@ -291,10 +308,25 @@ int main(int argc, char **argv)
                         }
                     }
                     if (!found) {
-                        // compute distance between point and neighbor
-                        double d = sqrt(Dist2(points[j], nKD[m]));
-                        cout << " (kd not ann: " << d << ")";
-                        fail = true;
+                        // at this point it can be that different points with
+                        // equal coordinates were picked - check against that
+                        // by explicitly comparing coordinates with an epsilon
+                        found = false;
+                        for (size_t n = 0; n < nKD.size(); ++n) {
+                            if (fabs(nANN[n][0] - nKD[m][0]) < epsilon
+                                    && fabs(nANN[n][1] - nKD[m][1]) < epsilon
+                                    && fabs(nANN[n][2] - nKD[m][2]) < epsilon) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        // still not found - error
+                        if (!found) {
+                            // compute distance between point and neighbor
+                            double d = sqrt(Dist2(points[j], nKD[m]));
+                            cout << " (kd not ann: " << d << ")";
+                            fail = true;
+                        }
                     }
                 }
                 // if there is no fail yet, compare the neighbor vector sizes
