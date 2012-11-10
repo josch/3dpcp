@@ -99,7 +99,9 @@ void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& c
     closest_list = params[threadNum].closest_list;
   } else {
     /// knn range search
-    closest_list.assign(params[threadNum].closest_list.begin(), params[threadNum].closest_list.begin()+knn);
+    for (size_t i = 0; i < params[threadNum].closest_list.size(); ++i)
+      if (Dist2(_p, params[threadNum].closest_list[i]) <= maxdist2 && i < knn)
+        closest_list.push_back(params[threadNum].closest_list[i]);
   }
 
 }
