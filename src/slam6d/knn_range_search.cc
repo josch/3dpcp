@@ -174,6 +174,8 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
     /// KDtree search
     KDtree kd_tree(points, nPoints);
 
+    cout << endl << "Finding neighbors for " << nPoints << " points" << endl;
+
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
         kd_tree.FindClosestKNNRange(points[i], sqr(range), n, k);
@@ -183,6 +185,7 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
                 cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
+        cout << i << " has " << n.size() << " neighbors" << endl;
         neighbors.insert(pair<double*, vector<double *>>(points[i], n));
     }
 }
@@ -253,7 +256,7 @@ int main(int argc, char **argv)
             calculateKdTree(points, maxp, knn, range, neighborsKD);
             endtime = GetCurrentTimeInMilliSec() - starttime;
             cout << "calculateKdTree done in " << endtime << " milliseconds!!!" << endl;
-
+#ifdef DEBUG
             ofstream fout("output");
 
             double epsilon = 0.0001;
@@ -346,6 +349,7 @@ int main(int argc, char **argv)
             }
             fout.flush();
             fout.close();
+#endif
             for (unsigned int i = 0; i < maxp; ++i) {
                 delete []points[i];
             }
