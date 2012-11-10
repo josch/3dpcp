@@ -198,6 +198,7 @@ int main(int argc, char **argv)
     int knn;
     double range;
     size_t maxpoints;
+    long starttime, endtime;
 
     parse_options(argc, argv, start, end, scanserver, dir, iotype, maxDist,
             minDist, knn, range, maxpoints);
@@ -238,8 +239,15 @@ int main(int argc, char **argv)
                     points[i][j] = xyz[i][j];
             }
 
+            starttime = GetCurrentTimeInMilliSec();
             calculateANN(points, maxp, knn, range, neighborsANN);
+            endtime = GetCurrentTimeInMilliSec() - starttime;
+            cout << "calculateANN done in " << endtime << " milliseconds!!!" << endl;
+
+            starttime = GetCurrentTimeInMilliSec();
             calculateKdTree(points, maxp, knn, range, neighborsKD);
+            endtime = GetCurrentTimeInMilliSec() - starttime;
+            cout << "calculateKdTree done in " << endtime << " milliseconds!!!" << endl;
 
             ofstream fout("output");
 
