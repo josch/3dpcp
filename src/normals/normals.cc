@@ -16,7 +16,8 @@
 #include <slam6d/io_types.h>
 #include <slam6d/globals.icc>
 #include <slam6d/scan.h>
-#include "slam6d/fbr/panorama.h"
+#include <slam6d/fbr/panorama.h>
+#include <slam6d/kd.h>
 #include <scanserver/clientInterface.h>
 
 #include <ANN/ANN.h>
@@ -120,6 +121,71 @@ void parse_options(int argc, char **argv, int &start, int &end, bool &scanserver
   if (dir[dir.length()-1] != '/') dir = dir + "/";
 
 }
+
+///////////////////////////////////////////////////////
+/////////NORMALS USING PCA & KDTREE METHOD ////////////
+///////////////////////////////////////////////////////
+void calculateNormalsKNNKD(double **points, unsigned int point_size, vector<Point> &normals, int k, const double _rPos[3] )
+{
+  cout << "Total number of points: "<< point_size << endl;
+
+  ColumnVector rPos(3);
+  for (int i = 0; i < 3; ++i)
+    rPos(i+1) = _rPos[i];
+
+  KDtree kd_tree(points, point_size);  
+
+  for (unsigned int i = 0; i < point_size; ++i) {
+    vector<double *> neighbors;
+    /// need to hardcode the range in which to search for nearest neighbors
+    kd_tree.FindClosestKNNRange(points[i], sqr(20.0), neighbors, k);
+
+    Point mean(0.0,0.0,0.0);
+	  Matrix X(neighbors.size(), 3);
+	  SymmetricMatrix A(3);
+    Matrix U(3,3);
+    DiagonalMatrix D(3);
+	  //calculate mean for all the neighbors
+    for (size_t j = 0; j < neighbors.size(); ++j) {
+      mean.x += neighbors[j][0];
+      mean.y += neighbors[j][1];
+      mean.z += neighbors[j][2];
+    }
+    mean.x /= neighbors.size() * 1.0;
+    mean.y /= neighbors.size() * 1.0;
+    mean.z /= neighbors.size() * 1.0;
+
+    //calculate covariance = A for all the points
+    for (size_t k = 0; k < neighbors.size(); ++k) {
+      X(k+1, 1) = neighbors[k][0] - mean.x;
+      X(k+1, 2) = neighbors[k][1] - mean.y;
+      X(k+1, 3) = neighbors[k][2] - mean.z;
+    }
+
+    A << 1.0/(int) neighbors.size() * X.t() * X;
+
+    EigenValues(A, D, U);
+
+    //normal = eigenvector corresponding to lowest 
+    //eigen value that is the 1st column of matrix U
+    ColumnVector n(3);
+    n(1) = U(1,1);
+    n(2) = U(2,1);
+    n(3) = U(3,1);
+    ColumnVector point_vector(3);
+    point_vector(1) = points[i][0] - rPos(1);
+    point_vector(2) = points[i][1] - rPos(2);
+    point_vector(3) = points[i][2] - rPos(3);
+    point_vector = point_vector / point_vector.NormFrobenius();
+    Real angle = (n.t() * point_vector).AsScalar();
+    if (angle < 0) {
+     n *= -1.0;
+    }
+    n = n / n.NormFrobenius();
+    normals.push_back(Point(n(1), n(2), n(3)));  	
+  }
+}
+
 ///////////////////////////////////////////////////////
 /////////////NORMALS USING AKNN METHOD ////////////////
 ///////////////////////////////////////////////////////
@@ -199,6 +265,86 @@ void calculateNormalsAKNN(vector<Point> &normals,vector<Point> &points, int k, c
   delete[] d;
   annDeallocPts(pa);
 }
+
+////////////////////////////////////////////////////////////////
+/////////NORMALS USING ADAPTIVE PCA+KDTREE METHOD //////////////
+////////////////////////////////////////////////////////////////
+void calculateNormalsAdaptiveKNNKD(double **points, unsigned int point_size, vector<Point> &normals, int kmin, int kmax, const double _rPos[3] )
+{
+  ColumnVector rPos(3);
+  for (int i = 0; i < 3; ++i)
+    rPos(i+1) = _rPos[i];
+
+  cout << "Total number of points: " << point_size << endl;
+  int nr_neighbors;	
+  KDtree kd_tree(points, point_size);
+
+  Point mean(0.0,0.0,0.0);
+  double e1,e2,e3;	
+		
+  for (unsigned int i = 0; i < point_size; ++i) {
+    vector<double *> neighbors;
+	  Matrix U(3,3);
+    for(int kidx = kmin; kidx < kmax; kidx++) {
+      nr_neighbors=kidx+1;
+      /// need to hardcode the range in which to search for nearest neighbors
+      kd_tree.FindClosestKNNRange(points[i], sqr(20.0), neighbors, nr_neighbors);
+      mean.x=0,mean.y=0,mean.z=0;
+      //calculate mean for all the points	    	
+		  for (int j = 0; j < nr_neighbors; ++j) {
+		    mean.x += neighbors[j][0];	
+		    mean.y += neighbors[j][1];
+		    mean.z += neighbors[j][2];
+		  }
+      mean.x /= neighbors.size() * 1.;
+      mean.y /= neighbors.size() * 1.;
+      mean.z /= neighbors.size() * 1.;
+
+		  Matrix X(neighbors.size(), 3);
+		  SymmetricMatrix A(3);
+		  DiagonalMatrix D(3);
+
+      //calculate covariance = A for all the points
+      for (size_t j = 0; j < neighbors.size(); ++j) {
+        X(j+1, 1) = neighbors[j][0] - mean.x;
+        X(j+1, 2) = neighbors[j][1] - mean.y;
+        X(j+1, 3) = neighbors[j][2] - mean.z;
+      }
+			
+  		A << 1.0/neighbors.size() * X.t() * X;
+			
+	  	EigenValues(A, D, U);
+
+      e1 = D(1);
+	  	e2 = D(2);
+      e3 = D(3);
+		
+  		//We take the particular k if the second maximum eigen value 
+  		//is at least 25 percent of the maximum eigen value
+  		if ((e1 > 0.25 * e2) && (fabs(1.0 - (double)e2/(double)e3) < 0.25)) 
+  		  break;
+    }
+	 
+	   //normal = eigenvector corresponding to lowest 
+	   //eigen value that is the 1rd column of matrix U
+	   ColumnVector n(3);
+	   n(1) = U(1,1);
+	   n(2) = U(2,1);
+	   n(3) = U(3,1);
+	   ColumnVector point_vector(3);
+	   point_vector(1) = points[i][0] - rPos(1);
+	   point_vector(2) = points[i][1] - rPos(2);
+	   point_vector(3) = points[i][2] - rPos(3);
+	   point_vector = point_vector / point_vector.NormFrobenius();
+	   Real angle = (n.t() * point_vector).AsScalar();
+	   if (angle < 0) {
+	     n *= -1.0;
+	   }
+	   n = n / n.NormFrobenius();
+	   normals.push_back(Point(n(1), n(2), n(3)));  
+  }
+}
+
 ////////////////////////////////////////////////////////////////
 /////////////NORMALS USING ADAPTIVE AKNN METHOD ////////////////
 ////////////////////////////////////////////////////////////////
@@ -221,7 +367,6 @@ void calculateNormalsAdaptiveAKNN(vector<Point> &normals,vector<Point> &points,
   ANNkd_tree t(pa, points.size(), 3);	
 
   Point mean(0.0,0.0,0.0);
-  double temp_n[3],norm_n = 0.0;
   double e1,e2,e3;	
 		
   for (size_t i=0; i<points.size(); ++i)
@@ -326,7 +471,6 @@ void calculateNormalsPANORAMA(vector<Point> &normals,
 		if (extendedMap[i][j].size() == 0) continue;
 		neighbors.clear();
 		Point mean(0.0,0.0,0.0);
-		double temp_n[3],norm_n = 0.0;
 	      
 		// Offset for neighbor computation
 		int offset[2][5] = {{-1,0,1,0,0},{0,-1,0,1,0}};
@@ -706,15 +850,24 @@ int main(int argc, char** argv)
     points.reserve(xyz.size());
     vector<Point> normals;
     normals.reserve(xyz.size());
-	
+
+    double **points_ptr = new double*[xyz.size()];
+    for (unsigned int i = 0; i < xyz.size(); ++i) {
+      points_ptr[i] = new double[3];
+      for (unsigned int j = 0; j < 3; ++j) 
+        points_ptr[i][j] = xyz[i][j];
+    }	
+
     for(unsigned int j = 0; j < xyz.size(); j++) {
-	 points.push_back(Point(xyz[j][0], xyz[j][1], xyz[j][2]));
+      points.push_back(Point(xyz[j][0], xyz[j][1], xyz[j][2]));
     }
 	
     if(ntype == AKNN)
-	 calculateNormalsAKNN(normals,points, k1, rPos);
+      //calculateNormalsAKNN(normals,points, k1, rPos);
+      calculateNormalsKNNKD(points_ptr, xyz.size(), normals, k1, rPos);
     else if(ntype == ADAPTIVE_AKNN)	
-	 calculateNormalsAdaptiveAKNN(normals,points, k1, k2, rPos);
+      //calculateNormalsAdaptiveAKNN(normals,points, k1, k2, rPos);
+      calculateNormalsAdaptiveKNNKD(points_ptr, xyz.size(), normals, k1, k2, rPos);
     else 
 	 {
 	   // create panorama
@@ -738,6 +891,9 @@ int main(int argc, char** argv)
     writeScanFiles(normdir, points,normals,scanNumber);
 
     scanNumber++;
+    for (unsigned int i = 0; i < xyz.size(); ++i)
+      delete []points_ptr[i];
+    delete []points_ptr;
   }
 
   // shutdown everything
