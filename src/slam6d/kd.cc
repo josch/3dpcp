@@ -43,7 +43,7 @@ KDParams KDTreeImpl<PointData, AccessorData, AccessorFunc>::params[MAX_OPENMP_NU
 struct ComparePoints {
     double *origin;
     bool operator() (double* i, double* j) { 
-        return (Dist2(i, origin) <= Dist2(j, origin));
+        return (Dist2(i, origin) < Dist2(j, origin));
     }
 } distance_comparison;
 
@@ -82,7 +82,7 @@ double *KDtree::FindClosest(double *_p, double maxdist2, int threadNum) const
   return params[threadNum].closest;
 }
 
-void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& closest_list, int knn, int threadNum) const
+void KDtree::FindClosestKNNRange(double *_p, double maxdist2, vector<double*>& closest_list, size_t knn, int threadNum) const
 {
   closest_list.clear();
   params[threadNum].closest_list.clear();
