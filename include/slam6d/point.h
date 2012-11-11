@@ -90,9 +90,7 @@ public:
   };
 
   inline bool operator==(const Point& rhs) const {
-    return (fabs(x - rhs.x) < numeric_limits<double>::epsilon( ) &&
-            fabs(y - rhs.y) < numeric_limits<double>::epsilon( ) &&
-            fabs(z - rhs.z) < numeric_limits<double>::epsilon( ));
+    return ((x - rhs.x)*(x - rhs.x) + (y - rhs.y)*(y - rhs.y) + (z - rhs.z)*(z - rhs.z)) < numeric_limits<double>::epsilon();
   }
 
   inline void transform(const double alignxf[16]);
