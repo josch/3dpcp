@@ -80,12 +80,11 @@ void FHGraph::compute_neighbors_kd(double weight(Point, Point), double eps)
 
             he e;
             /// need to recover the index (in the original point array) of the current neighbor
-            Point neighbor(neighbors[j][0], neighbors[j][1], neighbors[j][2]);
-            e.x = std::find(points.begin(), points.end(), neighbor) - points.begin();
-            if (e.x > (int) points.size()) {
-                cerr << "couldn't find neighbor in initial points" << endl;
-                return;
-            }
+            for (size_t k = 0; k < points_size; ++k) 
+                if (points_ptr[k] == neighbors[j]) {
+                    e.x = k;
+                    break;
+                }
             e.w = weight(points_ptr[i], neighbors[j]);
             adjency_list[i].push_back(e);
         }
