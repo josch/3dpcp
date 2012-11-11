@@ -174,8 +174,6 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
     /// KDtree search
     KDtree kd_tree(points, nPoints);
 
-    cout << endl << "Finding neighbors for " << nPoints << " points" << endl;
-
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
         kd_tree.FindClosestKNNRange(points[i], sqr(range), n, k);
@@ -185,7 +183,6 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
                 cerr << endl << "neighbor distance greater than radius" << endl;
             }
         }
-        cout << i << " has " << n.size() << " neighbors" << endl;
         neighbors.insert(pair<double*, vector<double *>>(points[i], n));
     }
 }
@@ -256,23 +253,32 @@ int main(int argc, char **argv)
             calculateKdTree(points, maxp, knn, range, neighborsKD);
             endtime = GetCurrentTimeInMilliSec() - starttime;
             cout << "calculateKdTree done in " << endtime << " milliseconds!!!" << endl;
-#ifdef DEBUG
-            ofstream fout("output");
+
+            cout << "writing debugging output to ./knn_range_search.log" << endl;
+            ofstream fout("knn_range_search.log");
 
             double epsilon = 0.0001;
 
+            // for each point, compare the neighbors calculated by ANN and
+            // kdtree
             for (size_t j = 0; j < maxp; ++j) {
                 bool fail = false;
+
                 cout << j;
                 fout << "Point " << j << ": " << points[j][0] << " " << points[j][1] << " " << points[j][2] << endl;
                 fout << "--------------------------------------------------" << endl;
                 fout << "ANN neighbors: " << endl;
+
                 vector<double *> nANN = neighborsANN.find(points[j])->second;
                 vector<double *> nKD = neighborsKD.find(points[j])->second;
+
                 for (size_t m = 0; m < nANN.size(); ++m) {
                     fout << nANN[m][0] << " " << nANN[m][1] << " " << nANN[m][2] << "\tDist: " << sqrt(Dist2(points[j], nANN[m])) << endl;
+
                     bool found = false;
+                    // try to find this ANN neighbor in the kdtree neighbors
                     for (size_t n = 0; n < nKD.size(); ++n) {
+                        // just compare the pointer values
                         if (nANN[m] == nKD[n]) {
                             found = true;
                             break;
@@ -293,7 +299,7 @@ int main(int argc, char **argv)
                         }
                         // still not found - error
                         if (!found) {
-                            // compute distance between point and neighbor
+                            // compute and print distance between point and neighbor
                             double d = sqrt(Dist2(points[j], nANN[m]));
                             cout << " (ann not kd: " << d << ")";
                             fail = true;
@@ -303,8 +309,11 @@ int main(int argc, char **argv)
                 fout << "KD neighbors: " << endl;
                 for (size_t m = 0; m < nKD.size(); ++m) {
                     fout << nKD[m][0] << " " << nKD[m][1] << " " << nKD[m][2] << "\tDist: " << sqrt(Dist2(points[j], nKD[m])) << endl;
+
                     bool found = false;
+                    // try to find this kdtree neighbor in the ANN neighbors
                     for (size_t n = 0; n < nANN.size(); ++n) {
+                        // just compare the pointer values
                         if (nANN[n] == nKD[m]) {
                             found = true;
                             break;
@@ -325,7 +334,7 @@ int main(int argc, char **argv)
                         }
                         // still not found - error
                         if (!found) {
-                            // compute distance between point and neighbor
+                            // compute and print distance between point and neighbor
                             double d = sqrt(Dist2(points[j], nKD[m]));
                             cout << " (kd not ann: " << d << ")";
                             fail = true;
@@ -349,7 +358,7 @@ int main(int argc, char **argv)
             }
             fout.flush();
             fout.close();
-#endif
+
             for (unsigned int i = 0; i < maxp; ++i) {
                 delete []points[i];
             }
