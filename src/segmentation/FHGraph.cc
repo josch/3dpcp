@@ -29,8 +29,18 @@ FHGraph::FHGraph(std::vector< Point >& ps, double weight(Point, Point), double s
     nr_neighbors = neighbors;
     this->radius = radius;
 
-    compute_neighbors(weight, eps);
+    /// convert from vector<Point> to double** (required by KDtree)
+    this->points_size = points.size();
+    points_ptr = new double*[points_size];
+    for (size_t i = 0; i < points_size; ++i) {
+        points_ptr[i] = new double[3];
+        points_ptr[i][0] = points[i].x;
+        points_ptr[i][1] = points[i].y;
+        points_ptr[i][2] = points[i].z;
+    }
 
+    compute_neighbors_kd(weight, eps);    
+    //compute_neighbors_ann(weight, eps);
 
     if ( sigma > 0.01 )
     {
@@ -44,7 +54,45 @@ FHGraph::FHGraph(std::vector< Point >& ps, double weight(Point, Point), double s
     adjency_list.clear();
 }
 
-void FHGraph::compute_neighbors(double weight(Point, Point), double eps)
+FHGraph::~FHGraph() 
+{
+    for (size_t i = 0; i < points_size; ++i)
+        delete[] points_ptr[i];
+    delete[] points_ptr;
+}
+
+void FHGraph::compute_neighbors_kd(double weight(Point, Point), double eps)
+{
+    adjency_list.reserve(points_size);
+    adjency_list.resize(points_size);
+
+    /// KDtree search
+    KDtree kd_tree(points_ptr, points_size);
+
+    for (size_t i = 0; i < points_size; ++i) {
+        vector<double *> neighbors;
+        /// distinction between knn and range search done within kd_tree
+        kd_tree.FindClosestKNNRange(points_ptr[i], sqr(radius), neighbors, nr_neighbors);
+        // check distances of found neighbors
+        for (size_t j = 0; j < neighbors.size(); ++j) {
+            if (Dist2(points_ptr[i], neighbors[j]) > sqr(radius))
+                cerr << "neighbor distance greater than radius" << endl;
+
+            he e;
+            /// need to recover the index (in the original point array) of the current neighbor
+            Point neighbor(neighbors[j][0], neighbors[j][1], neighbors[j][2]);
+            e.x = std::find(points.begin(), points.end(), neighbor) - points.begin();
+            if (e.x < (int) points.size()) {
+                cerr << "couldn't find neighbor in initial points" << endl;
+                return;
+            }
+            e.w = weight(points_ptr[i], neighbors[j]);
+            adjency_list[i].push_back(e);
+        }
+    }
+}
+
+void FHGraph::compute_neighbors_ann(double weight(Point, Point), double eps)
 {
 
     adjency_list.reserve(points.size());

@@ -176,6 +176,7 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
 
     for (size_t i=0; i<nPoints; ++i) {
         vector<double *> n;
+        /// distinction between knn and range search done within kd_tree 
         kd_tree.FindClosestKNNRange(points[i], sqr(range), n, k);
         // check distances of found neighbors
         for (size_t j = 0; j < n.size(); ++j) {

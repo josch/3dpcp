@@ -13,6 +13,8 @@
 using std::ostream;
 using std::istream;
 
+#include <limits>
+using std::numeric_limits;
 #include <stdexcept>
 using std::runtime_error;
 
@@ -87,7 +89,11 @@ public:
     return *this;
   };
 
-
+  inline bool operator==(const Point& rhs) const {
+    return (fabs(x - rhs.x) < numeric_limits<double>::epsilon( ) &&
+            fabs(y - rhs.y) < numeric_limits<double>::epsilon( ) &&
+            fabs(z - rhs.z) < numeric_limits<double>::epsilon( ));
+  }
 
   inline void transform(const double alignxf[16]);
   inline double distance(const Point& p);

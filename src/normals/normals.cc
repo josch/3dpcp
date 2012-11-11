@@ -128,7 +128,7 @@ void parse_options(int argc, char **argv, int &start, int &end, bool &scanserver
 void calculateNormalsKNNKD(double **points, unsigned int point_size, vector<Point> &normals, int k, const double _rPos[3] )
 {
   cout << "Total number of points: "<< point_size << endl;
-
+  normals.clear();
   ColumnVector rPos(3);
   for (int i = 0; i < 3; ++i)
     rPos(i+1) = _rPos[i];
@@ -140,23 +140,26 @@ void calculateNormalsKNNKD(double **points, unsigned int point_size, vector<Poin
     /// need to hardcode the range in which to search for nearest neighbors
     kd_tree.FindClosestKNNRange(points[i], sqr(20.0), neighbors, k);
 
+    size_t nr_neighbors = neighbors.size();
+  
+    if (nr_neighbors != (unsigned int) k) cout << " K: " << k << " neighbors: " << nr_neighbors << endl;
     Point mean(0.0,0.0,0.0);
-	  Matrix X(neighbors.size(), 3);
+	  Matrix X(nr_neighbors, 3);
 	  SymmetricMatrix A(3);
     Matrix U(3,3);
     DiagonalMatrix D(3);
 	  //calculate mean for all the neighbors
-    for (size_t j = 0; j < neighbors.size(); ++j) {
+    for (size_t j = 0; j < nr_neighbors; ++j) {
       mean.x += neighbors[j][0];
       mean.y += neighbors[j][1];
       mean.z += neighbors[j][2];
     }
-    mean.x /= neighbors.size() * 1.0;
-    mean.y /= neighbors.size() * 1.0;
-    mean.z /= neighbors.size() * 1.0;
+    mean.x /= nr_neighbors * 1.;
+    mean.y /= nr_neighbors * 1.;
+    mean.z /= nr_neighbors * 1.;
 
     //calculate covariance = A for all the points
-    for (size_t k = 0; k < neighbors.size(); ++k) {
+    for (size_t k = 0; k < nr_neighbors; ++k) {
       X(k+1, 1) = neighbors[k][0] - mean.x;
       X(k+1, 2) = neighbors[k][1] - mean.y;
       X(k+1, 3) = neighbors[k][2] - mean.z;
@@ -858,10 +861,6 @@ int main(int argc, char** argv)
         points_ptr[i][j] = xyz[i][j];
     }	
 
-    for(unsigned int j = 0; j < xyz.size(); j++) {
-      points.push_back(Point(xyz[j][0], xyz[j][1], xyz[j][2]));
-    }
-	
     if(ntype == AKNN)
       //calculateNormalsAKNN(normals,points, k1, rPos);
       calculateNormalsKNNKD(points_ptr, xyz.size(), normals, k1, rPos);
