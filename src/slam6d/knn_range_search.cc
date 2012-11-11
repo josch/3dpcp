@@ -187,6 +187,11 @@ void calculateKdTree(double **points, size_t nPoints, int k, double range, map<d
     }
 }
 
+struct ndist {
+    double *p;
+    bool operator() (double *a, double *b) { return Dist2(a,p)<Dist2(b,p); }
+} ndist;
+
 int main(int argc, char **argv)
 {
     // commandline arguments
@@ -257,7 +262,9 @@ int main(int argc, char **argv)
             cout << "writing debugging output to ./knn_range_search.log" << endl;
             ofstream fout("knn_range_search.log");
 
-            double epsilon = 0.0001;
+            double epsilon = 1.0e-15;
+
+            cout.precision(15);
 
             // for each point, compare the neighbors calculated by ANN and
             // kdtree
@@ -284,26 +291,43 @@ int main(int argc, char **argv)
                             break;
                         }
                     }
-                    if (!found) {
-                        // at this point it can be that different points with
-                        // equal coordinates were picked - check against that
-                        // by explicitly comparing coordinates with an epsilon
-                        found = false;
-                        for (size_t n = 0; n < nKD.size(); ++n) {
-                            if (fabs(nANN[m][0] - nKD[n][0]) < epsilon
-                                    && fabs(nANN[m][1] - nKD[n][1]) < epsilon
-                                    && fabs(nANN[m][2] - nKD[n][2]) < epsilon) {
+
+                    // if we do knn search, then it can happen that the
+                    // farthest points in each nearest neighbor list are of
+                    // equal distance but actually have different coordinates
+                    // so if a correspondence was not found at this point and
+                    // knn search is used, check for that
+                    if (!found && knn) {
+                        // get the greatest distances in both neighbor lists
+                        // sort, as it is not guaranteed that both lists are
+                        // sorted
+                        ndist.p = points[j];
+                        double *farthest_ann = *max_element(nANN.begin(), nANN.end(), ndist);
+                        double *farthest_kd = *max_element(nKD.begin(), nKD.end(), ndist);
+
+                        // check if the current neighbor is within an epsilon
+                        // distance range from the greatest distance in the
+                        // neighbor list
+                        if (fabs(sqrt(Dist2(points[j], nANN[m]))-sqrt(Dist2(points[j], farthest_ann))) < epsilon) {
+                            // if it is, check whether it is equally distant
+                            // from the query point as the farthest point in
+                            // the other neighbor list
+                            if (fabs(sqrt(Dist2(points[j], nANN[m]))-sqrt(Dist2(points[j], farthest_kd))) < epsilon) {
+                                // if such a point is found, than it was
+                                // only not found before because it
+                                // happened to be cut-off as it was of
+                                // equal distance
                                 found = true;
-                                break;
                             }
                         }
-                        // still not found - error
-                        if (!found) {
-                            // compute and print distance between point and neighbor
-                            double d = sqrt(Dist2(points[j], nANN[m]));
-                            cout << " (ann not kd: " << d << ")";
-                            fail = true;
-                        }
+                    }
+
+                    // still not found - error
+                    if (!found) {
+                        // compute and print distance between point and neighbor
+                        double d = sqrt(Dist2(points[j], nANN[m]));
+                        cout << " (ann not kd: " << d << ")";
+                        fail = true;
                     }
                 }
                 fout << "KD neighbors: " << endl;
@@ -319,26 +343,41 @@ int main(int argc, char **argv)
                             break;
                         }
                     }
-                    if (!found) {
-                        // at this point it can be that different points with
-                        // equal coordinates were picked - check against that
-                        // by explicitly comparing coordinates with an epsilon
-                        found = false;
-                        for (size_t n = 0; n < nKD.size(); ++n) {
-                            if (fabs(nANN[n][0] - nKD[m][0]) < epsilon
-                                    && fabs(nANN[n][1] - nKD[m][1]) < epsilon
-                                    && fabs(nANN[n][2] - nKD[m][2]) < epsilon) {
+                    // if we do knn search, then it can happen that the
+                    // farthest points in each nearest neighbor list are of
+                    // equal distance but actually have different coordinates
+                    // so if a correspondence was not found at this point and
+                    // knn search is used, check for that
+                    if (!found && knn) {
+                        // get the greatest distances in both neighbor lists
+                        // sort, as it is not guaranteed that both lists are
+                        // sorted
+                        ndist.p = points[j];
+                        double *farthest_ann = *max_element(nANN.begin(), nANN.end(), ndist);
+                        double *farthest_kd = *max_element(nKD.begin(), nKD.end(), ndist);
+
+                        // check if the current neighbor is within an epsilon
+                        // distance range from the greatest distance in the
+                        // neighbor list
+                        if (fabs(sqrt(Dist2(points[j], nKD[m]))-sqrt(Dist2(points[j], farthest_kd))) < epsilon) {
+                            // if it is, check whether it is equally distant
+                            // from the query point as the farthest point in
+                            // the other neighbor list
+                            if (fabs(sqrt(Dist2(points[j], nKD[m]))-sqrt(Dist2(points[j], farthest_ann))) < epsilon) {
+                                // if such a point is found, than it was
+                                // only not found before because it
+                                // happened to be cut-off as it was of
+                                // equal distance
                                 found = true;
-                                break;
                             }
                         }
-                        // still not found - error
-                        if (!found) {
-                            // compute and print distance between point and neighbor
-                            double d = sqrt(Dist2(points[j], nKD[m]));
-                            cout << " (kd not ann: " << d << ")";
-                            fail = true;
-                        }
+                    }
+                    // still not found - error
+                    if (!found) {
+                        // compute and print distance between point and neighbor
+                        double d = sqrt(Dist2(points[j], nKD[m]));
+                        cout << " (kd not ann: " << d << ")";
+                        fail = true;
                     }
                 }
                 // if there is no fail yet, compare the neighbor vector sizes
