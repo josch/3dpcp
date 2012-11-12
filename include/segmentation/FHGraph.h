@@ -42,6 +42,7 @@ private:
     std::vector<edge> edges;
     std::vector<Point>& points;
     double **points_ptr;
+    double (*points_data)[3];
     size_t points_size;
     int V;
     int E;
