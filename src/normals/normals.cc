@@ -142,7 +142,6 @@ void calculateNormalsKNNKD(double **points, unsigned int point_size, vector<Poin
 
     size_t nr_neighbors = neighbors.size();
   
-    if (nr_neighbors != (unsigned int) k) cout << " K: " << k << " neighbors: " << nr_neighbors << endl;
     Point mean(0.0,0.0,0.0);
 	  Matrix X(nr_neighbors, 3);
 	  SymmetricMatrix A(3);
@@ -860,6 +859,10 @@ int main(int argc, char** argv)
       for (unsigned int j = 0; j < 3; ++j) 
         points_ptr[i][j] = xyz[i][j];
     }	
+
+    for(unsigned int i = 0; i < xyz.size(); ++i) {
+        points.push_back(Point(xyz[i][0], xyz[i][1], xyz[i][2]));
+    }
 
     if(ntype == AKNN)
       //calculateNormalsAKNN(normals,points, k1, rPos);
