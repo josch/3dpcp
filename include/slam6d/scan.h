@@ -5,7 +5,6 @@
 #include "data_types.h"
 #include "point_type.h"
 #include "ptpair.h"
-#include "pairingMode.h"
 
 #include <string>
 #include <vector>
@@ -98,7 +97,10 @@ Last, if program ends, clean up
 class Scan {
   //friend class SearchTree; // TODO: is this neccessary?
 public:
-  enum AlgoType { INVALID, ICP, ICPINACTIVE, LUM, ELCH };
+  enum AlgoType {
+    INVALID, ICP, ICPINACTIVE, LUM, ELCH, LOOPTORO, LOOPHOGMAN, GRAPHTORO,
+    GRAPHHOGMAN
+  };
   
   // delete copy-ctor and assignment, scans shouldn't be copied by basic class
   Scan(const Scan& other) = delete;
@@ -106,8 +108,7 @@ public:
   
   virtual ~Scan();
 
-  //! Holder of all scans
-  //  also used in transform for adding frames for each scan at the same time
+  //! Holder of all scans - also used in transform for adding frames for each scan at the same time
   static std::vector<Scan*> allScans;
   
   /**
@@ -285,7 +286,7 @@ public:
     Scan* Source, Scan* Target,
     int thread_num,
     int rnd, double max_dist_match2, double &sum,
-    double *centroid_m, double *centroid_d, PairingMode pairing_mode = CLOSEST_POINT);
+    double *centroid_m, double *centroid_d);
   static void getNoPairsSimple(std::vector<double*> &diff,
     Scan* Source, Scan* Target,
     int thread_num,
@@ -301,8 +302,7 @@ public:
     int rnd, double max_dist_match2,
     double *sum,
     double centroid_m[OPENMP_NUM_THREADS][3],
-    double centroid_d[OPENMP_NUM_THREADS][3],
-    PairingMode pairing_mode);
+    double centroid_d[OPENMP_NUM_THREADS][3]);
 
 protected:
   /**
@@ -351,9 +351,6 @@ protected:
 
   //! Flag whether "xyz reduced" has been initialized for this Scan yet
   bool m_has_reduced;
-
-  //! Flag whether "normals" has been initialized for this Scan yet
-  bool m_has_normals;
   
   //! Reduction value used for octtree input
   double octtree_reduction_voxelSize;
@@ -375,31 +372,19 @@ protected:
   
   /**
    * This function handles the reduction of points. It builds a lock for
-   * multithread-safety and calls calcReducedOnDemandPrivate.
+   * multithread-safety and calls caldReducedOnDemandPrivate.
    *
    * The intention is to reduce points, transforme them to the initial pose and
    * then copy them to original for the SearchTree.
    */
   void calcReducedOnDemand();
 
-  /**
-   * This function handles the computation of the normals. It builds a lock for
-   * multithread-safety and calls caldNormalsOnDemandPrivate.
-   */
-  void calcNormalsOnDemand();
-  
   //! Create specific SearchTree variants matching the capability of the Scan
   virtual void createSearchTreePrivate() = 0;
   
   //! Create reduced points in a multithread-safe environment matching the capability of the Scan
   virtual void calcReducedOnDemandPrivate() = 0;
 
-  //! Create normals in a multithread-safe environment matching the capability of the Scan
-  virtual void calcNormalsOnDemandPrivate() = 0;
-  
-  //! Creating normals
-  void calcNormals();
-  
   //! Internal function of transform which alters the reduced points
   void transformReduced(const double alignxf[16]);
   
@@ -407,11 +392,11 @@ protected:
   void transformMatrix(const double alignxf[16]);
 
   //@FIXME
-public:  
+ public:  
   //! Creating reduced points
   void calcReducedPoints();
 
-protected:  
+ protected:  
   //! Copies reduced points to original points without any transformation.
   void copyReducedToOriginal();
   
@@ -425,7 +410,7 @@ private:
 public:
   //! Mutex for safely reducing points and creating the search tree just once in a multithreaded environment  
   // it can not be compiled  in win32 use boost 1.48, therefore we remeove it  temporarily
-  boost::mutex m_mutex_reduction, m_mutex_create_tree, m_mutex_normals;
+  boost::mutex m_mutex_reduction, m_mutex_create_tree;
 };
 
 #include "scan.icc"

@@ -1,4 +1,4 @@
-SET(SHOW_LIBS glui scan ANN ${OPENGL_LIBRARIES} normals newmat)
+SET(SHOW_LIBS glui scan ANN ${OPENGL_LIBRARIES})
 IF(WIN32)
  IF( CMAKE_SIZEOF_VOID_P EQUAL 8 )
     SET(SHOW_LIBS ${SHOW_LIBS}  ${CMAKE_SOURCE_DIR}/3rdparty/windows/x64/freeglut.lib XGetopt)
